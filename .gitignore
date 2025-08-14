@@ -1,0 +1,45 @@
+# Root .gitignore aggregating API and Frontend ignores
+
+# API ignores (prefixed with beaglemind-api/)
+/beaglemind-api/.env
+/beaglemind-api/myenv
+/beaglemind-api/app/__pycache__
+/beaglemind-api/app/services/__pycache__
+/beaglemind-api/app/models/__pycache__
+/beaglemind-api/app/routers/__pycache__
+/beaglemind-api/app/.env
+/beaglemind-api/__pycache__
+/beaglemind-api/app/services/search_vectorstore.py
+/beaglemind-api/onnx
+/beaglemind-api/app/data
+/beaglemind-api/.env
+/volumes
+/beaglemind-api/app/services/persist_knowledge_service.py
+
+# Frontend ignores (prefixed with beaglemind-frontend/)
+/beaglemind-frontend/node_modules
+/beaglemind-frontend/.pnp
+/beaglemind-frontend/.pnp.*
+/beaglemind-frontend/.yarn/*
+!/beaglemind-frontend/.yarn/patches
+!/beaglemind-frontend/.yarn/plugins
+!/beaglemind-frontend/.yarn/releases
+!/beaglemind-frontend/.yarn/versions
+/beaglemind-frontend/coverage
+/beaglemind-frontend/.next/
+/beaglemind-frontend/out/
+/beaglemind-frontend/build
+/beaglemind-frontend/.DS_Store
+/beaglemind-frontend/*.pem
+/beaglemind-frontend/npm-debug.log*
+/beaglemind-frontend/yarn-debug.log*
+/beaglemind-frontend/yarn-error.log*
+/beaglemind-frontend/.pnpm-debug.log*
+/beaglemind-frontend/.env*
+/beaglemind-frontend/.vercel
+/beaglemind-frontend/*.tsbuildinfo
+/beaglemind-frontend/next-env.d.ts
+
+
+
+volumes

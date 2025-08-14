@@ -1,0 +1,60 @@
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.build/
+.dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env.local
+.env.development
+.env.test
+.env.production
+.env
+# Model cache
+.cache/
+models/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Default ignores
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.swp
+.Python
+env/
+venv/
+.build
+.dist
+.git
+.gitignore
+
+# Explicitly include wheelhouse for offline installs
+!wheelhouse/**

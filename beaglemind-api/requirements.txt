@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+pymilvus
+transformers
+numpy
+python-dotenv
+onnxruntime
+langchain
