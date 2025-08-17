@@ -1,4 +1,5 @@
 import { openai } from '@ai-sdk/openai';
+import { groq } from '@ai-sdk/groq';
 import { convertToModelMessages, streamText, UIMessage } from 'ai';
 
 export const maxDuration = 30;
@@ -40,7 +41,7 @@ async function fetchKnowledgeBase(query: string) {
     const requestBody = {
       query: query,
   collection_name: KB_COLLECTION_NAME,
-      n_results: 10,
+      n_results: 5,
       include_metadata: true,
       rerank: true
     };
@@ -137,7 +138,7 @@ function buildContextFromResults(
 // Tools removed; retrieval is handled pre-response and injected into system prompt
 
 export async function POST(req: Request) {
-  const { messages, data }: { messages: UIMessage[]; data?: { tool?: string } } = await req.json();
+  const { messages, data }: { messages: UIMessage[]; data?: { tool?: string; provider?: 'openai' | 'groq'; model?: string } } = await req.json();
 
   let contextualSystemPrompt = `You are BeagleMind, an AI assistant specialized in BeagleBoard development and hardware.
 You help users with:
@@ -193,7 +194,11 @@ Output must be helpful, concise, clean markdown, and must NOT dump raw <context>
       .filter(Boolean)
       .join(' ');
 
-    const queryForRetrieval = conversationContext || userQuery;
+  const queryForRetrieval = conversationContext || userQuery;
+
+  // Tighten grounding and relevance to the retrieved context and the exact user ask
+  const focusBlock = `\n\nTASK FOCUS:\n- User question: "${userQuery}"\n- Use conversation context if present for intent alignment.\n\nGROUNDING & RELEVANCE RULES:\n1) Treat <context> as authoritative. Make factual claims ONLY if supported by it.\n2) If context is thin or missing, state that explicitly and ask up to 2 precise clarifying questions instead of guessing.\n3) Keep the answer tightly scoped to the user question. Do not include unrelated background.\n4) Prefer exact values/names/pins/versions found in the context; avoid generic placeholders.\n5) When a sentence comes from a specific Context N, reference it inline (e.g., '(from Context 2)') and include the required markdown link per citation rules.\n6) Output format: start with a 1–2 sentence direct answer, then concise steps or a short, runnable code snippet tailored to the hardware; finish with brief caveats or next steps.\n7) If the context contradicts general knowledge, prefer the context.`;
+  contextualSystemPrompt += focusBlock;
 
     if (queryForRetrieval) {
       console.log('Retrieving context for query:', queryForRetrieval);
@@ -214,11 +219,17 @@ Output must be helpful, concise, clean markdown, and must NOT dump raw <context>
   }
   
   // Optional: keep hint text based on requested tool, but no runtime tools are used
-  if (data?.tool === 'websearch') {
+  // Try to extract metadata from the last user message if not present in data
+  const lastUser = [...messages].reverse().find(m => m.role === 'user') as (UIMessage & { metadata?: Record<string, unknown> }) | undefined;
+  const toolSel = data?.tool || (lastUser?.metadata?.tool as string | undefined);
+  const providerSel = (data?.provider || (lastUser?.metadata?.provider as 'openai' | 'groq' | undefined)) as 'openai' | 'groq' | undefined;
+  const modelSel = (data?.model || (lastUser?.metadata?.model as string | undefined)) as string | undefined;
+
+  if (toolSel === 'websearch') {
     contextualSystemPrompt += '\n\nYou may search the web if required, but prefer internal knowledge base.';
-  } else if (data?.tool === 'knowledge') {
+  } else if (toolSel === 'knowledge') {
     contextualSystemPrompt += '\n\nPrefer the BeagleMind knowledge base when answering.';
-  } else if (data?.tool === 'both') {
+  } else if (toolSel === 'both') {
     contextualSystemPrompt += '\n\nUse both internal knowledge base and general knowledge as needed.';
   }
 
@@ -228,10 +239,15 @@ Output must be helpful, concise, clean markdown, and must NOT dump raw <context>
   // Use non-streaming generation so we can deterministically append a References section manually
   const modelMessages = convertToModelMessages(messages);
   // Pre-compute a references section and force the model to reproduce it verbatim at end.
+  // Pick model provider
+  const provider = providerSel === 'groq' ? 'groq' : 'openai';
+  const modelId = modelSel || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o');
+  const model = provider === 'groq' ? groq(modelId) : openai(modelId);
   const result = streamText({
-    model: openai('gpt-4o'),
+    model,
     system: contextualSystemPrompt,
     messages: modelMessages,
+    temperature: 0
   });
 
   return result.toUIMessageStreamResponse();

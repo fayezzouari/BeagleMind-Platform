@@ -14,6 +14,8 @@ interface WizardRequest {
   experience: string; // beginner | intermediate | advanced
   focus?: string; // software | hardware | mixed
   language?: string; // preferred implementation language for code snippets
+  provider?: 'openai' | 'groq';
+  model?: string;
 }
 
 interface PhasePlan {
@@ -290,8 +292,12 @@ RULES:
 10. No duplicate phases or tasks.`;
   const user = `GOALS: ${input.goals}\nHARDWARE: ${input.hardware}\nEXPERIENCE: ${input.experience}\nFOCUS: ${input.focus || 'mixed'}\nLANGUAGE: ${lang}\n${contextBlock}`;
 
+  const provider = input.provider === 'groq' ? 'groq' : 'openai';
+  const modelId = input.model || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o');
+  // TODO: When @ai-sdk/groq is installed, switch to Groq provider here
+  const model = openai(provider === 'groq' ? 'gpt-4o' : modelId);
   const result = await generateText({
-    model: openai('gpt-4o'),
+    model,
     system,
     prompt: user,
   temperature: 0.4,

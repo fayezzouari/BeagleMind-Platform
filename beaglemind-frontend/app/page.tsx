@@ -14,6 +14,8 @@ export default function BeagleMindApp() {
   const [view, setView] = useState<'chat' | 'wizard'>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('default');
+  const [modelProvider, setModelProvider] = useState<'openai' | 'groq'>('openai');
+  const [modelName, setModelName] = useState<string>('gpt-4o');
   
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -52,10 +54,10 @@ export default function BeagleMindApp() {
     if (data.tool) {
       sendMessage({ 
         text: data.text,
-        metadata: { tool: data.tool }
+        metadata: { tool: data.tool, provider: modelProvider, model: modelName }
       });
     } else {
-      sendMessage({ text: data.text });
+      sendMessage({ text: data.text, metadata: { provider: modelProvider, model: modelName } });
     }
   };
 
@@ -155,12 +157,15 @@ export default function BeagleMindApp() {
                   onSendMessage={handleSendMessage}
                   disabled={status !== 'ready'}
                   status={status}
+                  provider={modelProvider}
+                  model={modelName}
+                  onModelChange={({ provider, model }) => { setModelProvider(provider); setModelName(model); }}
                 />
               </div>
             </>
           )}
           {view === 'wizard' && (
-            <div className="h-full overflow-hidden"><WizardArea /></div>
+            <div className="h-full overflow-hidden"><WizardArea provider={modelProvider} model={modelName} /></div>
           )}
         </div>
       </div>

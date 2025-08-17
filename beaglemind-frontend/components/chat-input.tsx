@@ -4,14 +4,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Send, Square } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { ModelSelector } from '@/components/model-selector';
 
 interface ChatInputProps {
   onSendMessage: (message: { text: string; tool?: string }) => void;
   disabled: boolean;
   status: 'ready' | 'submitted' | 'streaming' | 'error';
+  provider?: 'openai' | 'groq';
+  model?: string;
+  onModelChange?: (next: { provider: 'openai' | 'groq'; model: string }) => void;
 }
 
-export function ChatInput({ onSendMessage, disabled, status }: ChatInputProps) {
+export function ChatInput({ onSendMessage, disabled, status, provider, model, onModelChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedTool, setSelectedTool] = useState<string>('none');
 
@@ -97,6 +101,17 @@ export function ChatInput({ onSendMessage, disabled, status }: ChatInputProps) {
               rows={1}
             />
             
+            {/* Model Selector */}
+            {onModelChange && (
+              <div className="hidden md:block">
+                <ModelSelector
+                  provider={provider || 'openai'}
+                  model={model || 'gpt-4o'}
+                  onChange={onModelChange}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               disabled={disabled || !input.trim()}
@@ -118,11 +133,18 @@ export function ChatInput({ onSendMessage, disabled, status }: ChatInputProps) {
           </div>
           
           {/* Tool indicator */}
-          {selectedTool !== 'none' && (
+          {(selectedTool !== 'none' || provider || model) && (
             <div className="flex items-center gap-2 mt-2">
-              <Badge variant="secondary" className="bg-cyan-700/20 text-cyan-400 border-cyan-700/30">
-                Web Search Enabled
-              </Badge>
+              {selectedTool !== 'none' && (
+                <Badge variant="secondary" className="bg-cyan-700/20 text-cyan-400 border-cyan-700/30">
+                  Web Search Enabled
+                </Badge>
+              )}
+              {(provider && model) && (
+                <Badge variant="secondary" className="bg-amber-700/20 text-amber-300 border-amber-700/30">
+                  {provider}: {model}
+                </Badge>
+              )}
             </div>
           )}
           

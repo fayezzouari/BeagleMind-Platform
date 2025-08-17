@@ -23,7 +23,7 @@ interface WizardPlan {
   risk_notes: string[];
 }
 
-export function WizardArea() {
+export function WizardArea({ provider, model }: { provider?: 'openai' | 'groq'; model?: string }) {
   const [goals, setGoals] = useState('');
   const [hardware, setHardware] = useState('BeagleBone Black');
   const [experience, setExperience] = useState<'beginner'|'intermediate'|'advanced'>('intermediate');
@@ -46,7 +46,7 @@ export function WizardArea() {
       const resp = await fetch('/api/wizard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ goals, hardware, experience, focus, language }),
+        body: JSON.stringify({ goals, hardware, experience, focus, language, provider, model }),
       });
       const data = await resp.json();
       if (!resp.ok || data.error) throw new Error(data.error || 'Failed');
@@ -108,6 +108,8 @@ export function WizardArea() {
           goals,
           focus,
           experience,
+          provider,
+          model,
         })
       });
       const data = await resp.json();

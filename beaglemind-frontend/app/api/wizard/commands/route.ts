@@ -10,6 +10,8 @@ interface CommandRequest {
   goals?: string;
   focus?: string;
   experience?: string;
+  provider?: 'openai' | 'groq';
+  model?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -21,8 +23,11 @@ export async function POST(req: NextRequest) {
     const lang = body.language || 'C';
     const prompt = `You are an expert embedded engineer for BeagleBoard.\nTASK TITLE: ${body.taskTitle}\nDETAIL: ${body.detail}\nHARDWARE: ${body.hardware}\nLANGUAGE: ${lang}\nGOALS: ${body.goals || ''}\nFOCUS: ${body.focus || ''}\nEXPERIENCE: ${body.experience || ''}\n\nProduce a STRICT JSON object ONLY with shape:\n{"commands":[{"cmd":"shell command","explanation":"short reason"}],"code":"OPTIONAL_${lang}_snippet_or_empty_string"}\nRules:\n- 3-8 commands, each minimal, safe, directly actionable.\n- Prefer standard Linux tooling (apt, git, make) & BeagleBoard context.\n- Avoid destructive operations (no rm -rf *, no sudo unless essential).\n- code snippet <= 80 lines, show key logic only, may be empty string if not useful.\n- NO text outside JSON.`;
 
+    const provider = body.provider === 'groq' ? 'groq' : 'openai';
+    const modelId = body.model || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o');
+    // For now, use OpenAI; Groq support can be added when provider package is available.
     const result = await generateText({
-      model: openai('gpt-4o'),
+      model: openai(provider === 'groq' ? 'gpt-4o' : modelId),
       system: 'Return ONLY raw JSON. Never add commentary.',
       prompt,
       temperature: 0.3,
