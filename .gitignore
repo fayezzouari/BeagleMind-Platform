@@ -15,7 +15,7 @@
 /beaglemind-api/.env
 /volumes
 /beaglemind-api/app/services/persist_knowledge_service.py
-
+/beaglemind-api/data
 # Frontend ignores (prefixed with beaglemind-frontend/)
 /beaglemind-frontend/node_modules
 /beaglemind-frontend/.pnp

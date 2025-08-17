@@ -1,4 +1,3 @@
-# filepath: /home/fayez/gsoc/rag_poc/src/forum_ingest.py
 import os
 import json
 import re
@@ -12,6 +11,7 @@ from transformers import AutoTokenizer
 import numpy as np
 from datetime import datetime
 import dotenv
+from pathlib import Path
 
 dotenv.load_dotenv()
 MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
@@ -87,7 +87,7 @@ def connect_milvus():
     connections.connect(**connect_kwargs)
 
 def get_or_create_collection(collection_name: str, embedding_dim: int) -> Collection:
-    # Use the same 14-field schema as the retrieval service
+    # Schema aligned with GitHub ingestor (16 fields)
     fields = [
         FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
         FieldSchema(name="document", dtype=DataType.VARCHAR, max_length=65535),
@@ -96,6 +96,7 @@ def get_or_create_collection(collection_name: str, embedding_dim: int) -> Collec
         FieldSchema(name="file_path", dtype=DataType.VARCHAR, max_length=1000),
         FieldSchema(name="file_type", dtype=DataType.VARCHAR, max_length=50),
         FieldSchema(name="source_link", dtype=DataType.VARCHAR, max_length=2000),
+        FieldSchema(name="github_link", dtype=DataType.VARCHAR, max_length=2000),
         FieldSchema(name="chunk_index", dtype=DataType.INT64),
         FieldSchema(name="language", dtype=DataType.VARCHAR, max_length=50),
         FieldSchema(name="has_code", dtype=DataType.BOOL),
@@ -103,26 +104,33 @@ def get_or_create_collection(collection_name: str, embedding_dim: int) -> Collec
         FieldSchema(name="content_quality_score", dtype=DataType.FLOAT),
         FieldSchema(name="semantic_density_score", dtype=DataType.FLOAT),
         FieldSchema(name="information_value_score", dtype=DataType.FLOAT),
+        FieldSchema(name="image_links", dtype=DataType.VARCHAR, max_length=8192),
     ]
-    
-    schema = CollectionSchema(fields, "Forum content with semantic chunking")
+
+    schema = CollectionSchema(fields, "Forum content with semantic chunking and image metadata")
+
+    # If collection exists, use it as-is (do not drop or overwrite). Otherwise create new with full schema.
     if utility.has_collection(collection_name):
-        logger.info(f"Collection '{collection_name}' already exists")
+        logger.info(f"Collection '{collection_name}' already exists; appending new data without schema changes.")
         col = Collection(collection_name)
     else:
         logger.info(f"Creating collection '{collection_name}'")
         col = Collection(collection_name, schema)
-        index_params = {"metric_type": "COSINE", "index_type": "IVF_FLAT", "params": {"nlist": 1024}}
+        index_params = {"metric_type": "L2", "index_type": "IVF_FLAT", "params": {"nlist": 1024}}
         col.create_index("embedding", index_params)
+
     col.load()
     return col
 
-def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_docs", model_name: str = "BAAI/bge-base-en-v1.5"):
+def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_col", model_name: str = "BAAI/bge-base-en-v1.5"):
     connect_milvus()
     
-    # Initialize ONNX embedding model
-    tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-base-en-v1.5")
-    session = ort.InferenceSession("onnx/model.onnx")
+    # Initialize ONNX embedding model (offline/local files)
+    # Resolve absolute path to the onnx assets directory: <repo>/beaglemind-api/onnx
+    script_path = Path(__file__).resolve()
+    onnx_dir = script_path.parents[2] / "onnx"
+    tokenizer = AutoTokenizer.from_pretrained(str(onnx_dir), local_files_only=True)
+    session = ort.InferenceSession(str(onnx_dir / "model.onnx"))
     
     # Get embedding dimension
     sample_embedding = _encode_text("test", tokenizer, session)
@@ -134,8 +142,23 @@ def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_docs", 
     with open(json_path, 'r') as f:
         threads = json.load(f)
     
-    # Prepare data for all 35 fields
+    # Prepare data aligned to 16-field schema
     chunk_data = []
+    
+    # Simple image URL extractor (markdown, html, or direct links)
+    image_patterns = [
+        r'!\[[^\]]*\]\(([^)]+)\)',                    # Markdown image
+        r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>',   # HTML image
+        r'\bhttps?://[^\s]+\.(?:png|jpg|jpeg|gif|svg|webp|bmp|ico)\b'  # Direct URL
+    ]
+    def extract_images(text: str) -> List[str]:
+        links = []
+        for pat in image_patterns:
+            for m in re.finditer(pat, text, re.IGNORECASE):
+                url = m.group(1) if m.groups() else m.group(0)
+                links.append(url)
+        # de-dup
+        return list({u for u in links})
     for thread in threads:
         thread_link = thread.get("url", "")
         thread_name = thread.get("thread_name", "")
@@ -153,8 +176,12 @@ def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_docs", 
             for chunk_idx, chunk in enumerate(chunks):
                 if len(chunk.strip()) < 20:
                     continue
-                    
-                # Only create metadata for the 14 fields
+                
+                # Extract images from this chunk
+                imgs = extract_images(chunk)
+                image_links = json.dumps(imgs) if imgs else '[]'
+                
+                # Create metadata for the 16 fields
                 chunk_data.append({
                     'id': str(uuid.uuid4()),
                     'document': chunk[:65535],
@@ -162,13 +189,15 @@ def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_docs", 
                     'file_path': f"forum/{thread_name}",
                     'file_type': '.forum',
                     'source_link': thread_link[:2000],
+                    'github_link': thread_link[:2000],  # no GitHub source; keep same as source_link for traceability
                     'chunk_index': chunk_idx,
                     'language': 'text',
                     'has_code': False,
                     'repo_name': 'beagleboard_forum',
                     'content_quality_score': 0.7,
                     'semantic_density_score': 0.6,
-                    'information_value_score': 0.8
+                    'information_value_score': 0.8,
+                    'image_links': image_links,
                 })
     
     # Generate embeddings
@@ -184,30 +213,47 @@ def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_docs", 
     
     embeddings = np.array(embeddings)
     
-    # Insert in batches with 14 fields
+    # Insert in batches; dynamically align to existing collection schema order
     batch_size = 100
     for i in range(0, len(chunk_data), batch_size):
         batch_end = min(i + batch_size, len(chunk_data))
         batch_data = chunk_data[i:batch_end]
         batch_embeddings = embeddings[i:batch_end]
         
-        # Prepare entities for 14 fields in correct order
-        entities = [
-            [item['id'] for item in batch_data],
-            [item['document'] for item in batch_data],
-            batch_embeddings.tolist(),
-            [item['file_name'] for item in batch_data],
-            [item['file_path'] for item in batch_data],
-            [item['file_type'] for item in batch_data],
-            [item['source_link'] for item in batch_data],
-            [item['chunk_index'] for item in batch_data],
-            [item['language'] for item in batch_data],
-            [item['has_code'] for item in batch_data],
-            [item['repo_name'] for item in batch_data],
-            [item['content_quality_score'] for item in batch_data],
-            [item['semantic_density_score'] for item in batch_data],
-            [item['information_value_score'] for item in batch_data]
-        ]
+        # Build per-field arrays
+        field_values: Dict[str, Any] = {
+            'id': [item['id'] for item in batch_data],
+            'document': [item['document'] for item in batch_data],
+            'embedding': batch_embeddings.tolist(),
+            'file_name': [item['file_name'] for item in batch_data],
+            'file_path': [item['file_path'] for item in batch_data],
+            'file_type': [item['file_type'] for item in batch_data],
+            'source_link': [item['source_link'] for item in batch_data],
+            'github_link': [item.get('github_link', '') for item in batch_data],
+            'chunk_index': [item['chunk_index'] for item in batch_data],
+            'language': [item['language'] for item in batch_data],
+            'has_code': [item['has_code'] for item in batch_data],
+            'repo_name': [item['repo_name'] for item in batch_data],
+            'content_quality_score': [item['content_quality_score'] for item in batch_data],
+            'semantic_density_score': [item['semantic_density_score'] for item in batch_data],
+            'information_value_score': [item['information_value_score'] for item in batch_data],
+            'image_links': [item.get('image_links', '[]') for item in batch_data],
+        }
+
+        # Respect existing schema order and skip unknown fields
+        existing_order = [f.name for f in collection.schema.fields]
+        entities = []
+        for fname in existing_order:
+            if fname not in field_values:
+                logger.debug(f"Skipping field not present in prepared data: {fname}")
+                # In case collection has a field we don't prepare, provide sensible defaults
+                if fname == 'embedding':
+                    entities.append(batch_embeddings.tolist())
+                else:
+                    # default empty per-row values to keep lengths consistent
+                    entities.append(['' for _ in batch_data])
+                continue
+            entities.append(field_values[fname])
         
         collection.insert(entities)
         collection.flush()
@@ -219,7 +265,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Ingest forum JSON threads into Milvus collection with semantic chunking.")
     parser.add_argument("json_path", help="Path to scraped_threads_complete.json")
-    parser.add_argument("--collection", default="beaglemind_docs", help="Milvus collection name")
+    parser.add_argument("--collection", default="beaglemind_col", help="Milvus collection name")
     parser.add_argument("--model", default="BAAI/bge-base-en-v1.5", help="Embedding model name")
     args = parser.parse_args()
     ingest_forum_json(args.json_path, args.collection, args.model)
