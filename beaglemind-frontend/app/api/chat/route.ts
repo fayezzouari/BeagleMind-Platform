@@ -34,7 +34,7 @@ interface RetrieveResponse {
 }
 
 // Context building configuration
-const KB_CONTEXT_RESULTS = Number(process.env.KB_CONTEXT_RESULTS || 5);
+const KB_CONTEXT_RESULTS = Number(5);
 const KB_CONTEXT_CHAR_BUDGET = Number(process.env.KB_CONTEXT_CHAR_BUDGET || 4000);
 
 // Function to fetch from knowledge base
