@@ -7,7 +7,7 @@ export const maxDuration = 30;
 // Configuration constants
 const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'http://localhost:8000';
 // Make collection configurable; default to backend's expected name
-const KB_COLLECTION_NAME = process.env.KB_COLLECTION_NAME || 'beaglemind_col';
+const KB_COLLECTION_NAME = 'beagle';
 
 // Types for the retrieve API
 interface DocumentMetadata {
@@ -106,18 +106,25 @@ function buildContextFromResults(
 
   for (const [i, r] of results.entries()) {
     const meta = r.metadata || {};
+    const link = meta.source_link as string | undefined;
+    const isForum = Boolean(
+      (meta.file_type && meta.file_type === '.forum') ||
+      (meta.repo_name && String(meta.repo_name).toLowerCase().includes('forum')) ||
+      (meta.source_link && String(meta.source_link).includes('forum.beagleboard.org'))
+    );
     const metaParts: string[] = [];
     if (meta.file_name) metaParts.push(`File: ${meta.file_name}`);
     if (meta.repo_name) metaParts.push(`Repo: ${meta.repo_name}`);
     if (meta.language) metaParts.push(`Lang: ${meta.language}`);
     if (meta.has_code) metaParts.push('Contains Code');
-    if (meta.github_link) metaParts.push(`GitHub: ${meta.github_link}`);
+    if (isForum) metaParts.push('Forum reply');
+  // Do not display GitHub link in header; use Source line with source_link only
     const header = `Context ${i + 1}${metaParts.length ? ` [${metaParts.join(', ')}]` : ''}`;
     const text = (r.content || '').trim();
     const allowed = Math.max(0, KB_CONTEXT_CHAR_BUDGET - used - header.length - 4);
     if (allowed <= 0) break;
     const clipped = text.length > allowed ? text.slice(0, allowed) : text;
-    const sourceLine = meta.source_link ? `\n(Source: ${meta.source_link})` : '';
+  const sourceLine = link ? `\n(Source: ${isForum ? 'forum reply - ' : ''}${link})` : '';
     let imageBlock = '';
     if (meta.image_links) {
       try {
@@ -132,7 +139,7 @@ function buildContextFromResults(
     chunks.push(block);
     included += 1;
     if (meta.source_link) {
-      sourceMap.push(`C${i + 1}: ${meta.source_link}`);
+      sourceMap.push(`C${i + 1}: ${isForum ? 'forum reply - ' : ''}${meta.source_link}`);
     }
     if (used >= KB_CONTEXT_CHAR_BUDGET) break;
   }
@@ -181,6 +188,12 @@ List ONLY the distinct source URLs you actually cited in the answer (order of fi
 If you used a source but didn't cite it inline yet, cite it inline before producing the References section (self-correct first). If no sources were provided, omit the References section entirely.
 
 Output must be helpful, concise, clean markdown, and must NOT dump raw <context>. Always integrate citations inline and finish with the required References section when sources exist.
+
+FORUM REPLY HANDLING:
+- Some context items originate from the BeagleBoard forum (you may see a "Forum reply" label in the Context header or a source URL containing forum.beagleboard.org).
+- When you use information coming from a forum reply, explicitly note that it is from a forum reply and include the forum reply link inline as the citation.
+  Example: According to a BeagleBoard forum reply about cape pinmux changes [forum reply](https://forum.beagleboard.org/...).
+- Avoid over-citation: cite once per paragraph for related sentences.
 \nSELF-CHECK BEFORE SENDING FINAL TOKEN (perform silently, then fix if needed):\n- If a <sources> block exists: Does answer contain inline [text](URL) citations?\n- Does it end with a '## References' section listing each cited URL exactly once?\n- Are there any cited URLs not in <sources>? (Remove them if so.)\n- Any URL in <sources> used but not cited? (Add a citation sentence.)\nIf any check fails, correct the answer BEFORE finalizing the stream.\n
 `;
 
