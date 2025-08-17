@@ -17,6 +17,8 @@ interface DocumentMetadata {
   file_path?: string;
   file_type?: string;
   source_link?: string;
+  github_link?: string;
+  image_links?: string;
   chunk_index?: number;
   language?: string;
   has_code?: boolean;
@@ -109,15 +111,25 @@ function buildContextFromResults(
     if (meta.repo_name) metaParts.push(`Repo: ${meta.repo_name}`);
     if (meta.language) metaParts.push(`Lang: ${meta.language}`);
     if (meta.has_code) metaParts.push('Contains Code');
+    if (meta.github_link) metaParts.push(`GitHub: ${meta.github_link}`);
     const header = `Context ${i + 1}${metaParts.length ? ` [${metaParts.join(', ')}]` : ''}`;
     const text = (r.content || '').trim();
     const allowed = Math.max(0, KB_CONTEXT_CHAR_BUDGET - used - header.length - 4);
     if (allowed <= 0) break;
     const clipped = text.length > allowed ? text.slice(0, allowed) : text;
     const sourceLine = meta.source_link ? `\n(Source: ${meta.source_link})` : '';
-    const block = `${header}:\n${clipped}${sourceLine}`;
+    let imageBlock = '';
+    if (meta.image_links) {
+      try {
+        const images = JSON.parse(meta.image_links);
+        if (Array.isArray(images) && images.length > 0) {
+          imageBlock = '\n' + images.map((img: string) => `![context image](${img})`).join('\n');
+        }
+      } catch {}
+    }
+    const block = `${header}:\n${clipped}${sourceLine}${imageBlock}`;
     used += block.length + 2;
-  chunks.push(block);
+    chunks.push(block);
     included += 1;
     if (meta.source_link) {
       sourceMap.push(`C${i + 1}: ${meta.source_link}`);
@@ -130,7 +142,7 @@ function buildContextFromResults(
     included,
     sources: sourceMap, // array of strings like C1: URL
     text: chunks.length
-	? `\n\n<context>\n${summary}\n\n${chunks.join('\n\n')}\n</context>\n${sourceMap.length ? `\n<sources>\n# SOURCE LINKS (Cite these inline and list in References)\n${sourceMap.join('\n')}\n</sources>\n` : ''}\nUse the context above for grounding. If insufficient, combine with general BeagleBoard knowledge and clearly label assumptions.`
+      ? `\n\n<context>\n${summary}\n\n${chunks.join('\n\n')}\n</context>\n${sourceMap.length ? `\n<sources>\n# SOURCE LINKS (Cite these inline and list in References)\n${sourceMap.join('\n')}\n</sources>\n` : ''}\nUse the context above for grounding. If insufficient, combine with general BeagleBoard knowledge and clearly label assumptions.`
       : ''
   };
 }

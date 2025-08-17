@@ -189,6 +189,29 @@ Swagger UI: `http://localhost:8000/docs`
 | Volume permission errors | Host FS perms | `chown -R $(id -u):$(id -g) volumes/` |
 | Code changes not reflected | Old container image running | `docker compose build rag-api && docker compose up -d rag-api` |
 
+---
+## Preparing Offline ONNX Models (one-time)
+If you see errors like "Embedding model not loaded", you likely don't have the offline models under `beaglemind-api/onnx`. Prepare them once locally:
+
+1. Create and activate a virtualenv, then install dev tools:
+  - pip install -r dev-requirements.txt
+2. Run the prep script (downloads from Hugging Face once, then exports ONNX and saves tokenizers):
+  - python app/scripts/prepare_onnx_models.py
+
+This will produce:
+- onnx/model.onnx
+- onnx/cross_encoder.onnx
+- onnx/embedding_tokenizer/*
+- onnx/reranker_tokenizer/*
+
+Now re-run docker compose. The repo's `docker-compose.yml` mounts `beaglemind-api/onnx` into the API container at `/app/onnx:ro` automatically.
+
+Advanced: You can override paths via env vars on the API service:
+- EMBEDDING_ONNX_PATH (default: onnx/model.onnx)
+- RERANKER_ONNX_PATH (default: onnx/cross_encoder.onnx)
+- EMBEDDING_TOKENIZER_DIR (default: onnx/embedding_tokenizer if exists else onnx/)
+- RERANKER_TOKENIZER_DIR (default: onnx/reranker_tokenizer if exists else onnx/)
+
 Collect logs:
 ```bash
 docker compose logs --tail=200 rag-api standalone

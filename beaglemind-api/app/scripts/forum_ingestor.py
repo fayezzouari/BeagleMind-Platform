@@ -55,7 +55,7 @@ def _encode_text(text: str, tokenizer, session) -> List[float]:
     
     return normalized_embedding.tolist()
 
-def semantic_chunk_post(content: str, language: str = "text", chunk_size: int = 512) -> List[str]:
+def semantic_chunk_post(content: str, language: str = "text", chunk_size: int = 1024) -> List[str]:
     """
     Chunk forum post content using RecursiveCharacterTextSplitter.
     More reliable than semantic chunking for forum posts.

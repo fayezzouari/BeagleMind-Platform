@@ -17,6 +17,8 @@ class DocumentMetadata(BaseModel):
     file_path: Optional[str] = None
     file_type: Optional[str] = None
     source_link: Optional[str] = None
+    github_link: Optional[str] = None
+    image_links: Optional[str] = None
     chunk_index: Optional[int] = None
     language: Optional[str] = None
     has_code: Optional[bool] = None

@@ -211,7 +211,7 @@ class GitHubDirectIngester:
         embedding_dim = len(sample_embedding)
         logger.info(f"Embedding dimension: {embedding_dim}")
         
-        # Simplified schema matching retrieval service (14 fields)
+        # Simplified schema matching retrieval service (extended to 16 fields)
         fields = [
             FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
             FieldSchema(name="document", dtype=DataType.VARCHAR, max_length=65535),
@@ -220,6 +220,7 @@ class GitHubDirectIngester:
             FieldSchema(name="file_path", dtype=DataType.VARCHAR, max_length=1000),
             FieldSchema(name="file_type", dtype=DataType.VARCHAR, max_length=50),
             FieldSchema(name="source_link", dtype=DataType.VARCHAR, max_length=2000),
+            FieldSchema(name="github_link", dtype=DataType.VARCHAR, max_length=2000),
             FieldSchema(name="chunk_index", dtype=DataType.INT64),
             FieldSchema(name="language", dtype=DataType.VARCHAR, max_length=50),
             FieldSchema(name="has_code", dtype=DataType.BOOL),
@@ -227,6 +228,7 @@ class GitHubDirectIngester:
             FieldSchema(name="content_quality_score", dtype=DataType.FLOAT),
             FieldSchema(name="semantic_density_score", dtype=DataType.FLOAT),
             FieldSchema(name="information_value_score", dtype=DataType.FLOAT),
+            FieldSchema(name="image_links", dtype=DataType.VARCHAR, max_length=8192),
         ]
         
         schema = CollectionSchema(fields, "Enhanced repository content with semantic chunking and image metadata")
@@ -234,11 +236,37 @@ class GitHubDirectIngester:
         # Handle existing collection with better error handling
         try:
             if utility.has_collection(self.collection_name):
-                logger.info(f"Collection '{self.collection_name}' already exists, loading to append new data.")
-                self.collection = Collection(self.collection_name)
-                self.collection.load()
-                logger.info(f"Using existing collection '{self.collection_name}' - new data will be appended")
-                return
+                logger.info(f"Collection '{self.collection_name}' already exists, checking schema...")
+                existing = Collection(self.collection_name)
+                existing_fields = [f.name for f in existing.schema.fields]
+                existing_dim = None
+                for f in existing.schema.fields:
+                    if f.name == "embedding":
+                        existing_dim = f.params.get('dim')
+                        break
+
+                required_fields = {"id","document","embedding","file_name","file_path","file_type","source_link","github_link","chunk_index","language","has_code","repo_name","content_quality_score","semantic_density_score","information_value_score","image_links"}
+                need_recreate = False
+                if existing_dim != embedding_dim:
+                    logger.info(f"Existing collection dim {existing_dim} != expected {embedding_dim}")
+                    need_recreate = True
+                if not required_fields.issubset(set(existing_fields)):
+                    missing = required_fields.difference(set(existing_fields))
+                    logger.info(f"Existing collection missing fields: {missing}")
+                    need_recreate = True
+
+                if need_recreate:
+                    logger.info(f"Dropping and recreating collection '{self.collection_name}' to match new schema")
+                    try:
+                        utility.drop_collection(self.collection_name)
+                    except Exception as drop_err:
+                        logger.warning(f"Failed to drop existing collection: {drop_err}")
+                    # fall through to create new
+                else:
+                    self.collection = existing
+                    self.collection.load()
+                    logger.info(f"Using existing collection '{self.collection_name}' - schema is compatible")
+                    return
             
             # Create new collection with retry logic
             max_create_retries = 3
@@ -498,6 +526,35 @@ class GitHubDirectIngester:
         
         chunks = text_splitter.split_text(content)
         return [chunk for chunk in chunks if len(chunk.strip()) > 30]
+
+    def _to_docs_link(self, repo_owner: str, repo_name: str, branch: str, file_path: str, default: str) -> str:
+        """Convert a GitHub docs repo path to its published docs URL (rst/md -> html).
+        Example: https://github.com/beagleboard/docs.beagleboard.io/blob/main/boards/index.rst
+        ->       https://docs.beagle.cc/boards/index.html
+        """
+        try:
+            if repo_owner == 'beagleboard' and repo_name == 'docs.beagleboard.io':
+                web_path = file_path
+                # README under directories becomes index
+                if web_path.lower().endswith('/readme.md'):
+                    web_path = web_path[: -len('/readme.md')] + '/index.md'
+                # rst/md -> html
+                if web_path.lower().endswith('.rst'):
+                    web_path = web_path[: -4] + '.html'
+                elif web_path.lower().endswith('.md'):
+                    web_path = web_path[: -3] + '.html'
+                return f"https://docs.beagle.cc/{web_path}"
+        except Exception:
+            pass
+        return default
+
+    def _to_raw_github(self, url: str) -> str:
+        """Convert a GitHub blob URL to raw URL if applicable; otherwise return as-is."""
+        m = re.match(r'^https://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$', url)
+        if m:
+            owner, repo, branch, path = m.groups()
+            return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
+        return url
     
     def analyze_content(self, content: str, file_info: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -710,13 +767,15 @@ class GitHubDirectIngester:
         if not content or len(content.strip()) < 50:
             logger.warning(f"[PROCESS] Skipping {file_info['path']}: content too short or empty (length: {len(content) if content else 0})")
             return []
-        
+
         logger.info(f"[PROCESS] Content fetched successfully, size: {len(content)} characters")
-        
+
         # Extract images and links
         logger.info(f"[PROCESS] Extracting images and links...")
         base_url = f"https://github.com/{repo_owner}/{repo_name}/blob/{branch}/"
         image_links, attachment_links, external_links = self.extract_images_and_links(content, base_url)
+        # Convert any GitHub blob image links to raw URLs, keep externals as-is
+        raw_image_links = [self._to_raw_github(u) for u in image_links]
         logger.info(f"[PROCESS] Found {len(image_links)} images, {len(attachment_links)} attachments, {len(external_links)} external links")
         
         # Analyze content
@@ -750,14 +809,18 @@ class GitHubDirectIngester:
                 if att_name in chunk.lower():
                     chunk_attachments.append(att_link)
             
-            # Create metadata matching 14-field schema
+            # Build transformed links
+            github_link = file_info['source_link']
+            docs_link = self._to_docs_link(repo_owner, repo_name, branch, file_info['path'], github_link)
+
             chunk_metadata = {
                 'id': str(uuid.uuid4()),
                 'document': chunk,
                 'file_name': file_info['name'],
                 'file_path': file_info['path'],
                 'file_type': file_info['extension'],
-                'source_link': file_info['source_link'],
+                'source_link': docs_link,
+                'github_link': github_link,
                 'chunk_index': i,
                 'language': content_analysis['language'],
                 'has_code': content_analysis['has_code'],
@@ -765,6 +828,7 @@ class GitHubDirectIngester:
                 'content_quality_score': content_analysis['content_quality_score'],
                 'semantic_density_score': content_analysis['semantic_density_score'],
                 'information_value_score': content_analysis['information_value_score'],
+                'image_links': json.dumps(raw_image_links) if raw_image_links else '[]',
             }
             
             chunk_metadata_list.append(chunk_metadata)
@@ -825,7 +889,7 @@ class GitHubDirectIngester:
             
             logger.info(f"[STORAGE] Processing batch {batch_num}/{total_batches} ({len(batch_metadata)} chunks)")
             
-            # Prepare insert data (14 fields matching retrieval service schema)
+            # Prepare insert data (16 fields matching retrieval service schema)
             insert_data = [
                 [item['id'] for item in batch_metadata],
                 [item['document'][:65535] for item in batch_metadata],
@@ -834,6 +898,7 @@ class GitHubDirectIngester:
                 [item['file_path'][:1000] for item in batch_metadata],
                 [item['file_type'][:50] for item in batch_metadata],
                 [item['source_link'][:2000] for item in batch_metadata],
+                [item['github_link'][:2000] for item in batch_metadata],
                 [item['chunk_index'] for item in batch_metadata],
                 [item['language'][:50] for item in batch_metadata],
                 [item['has_code'] for item in batch_metadata],
@@ -841,6 +906,7 @@ class GitHubDirectIngester:
                 [item['content_quality_score'] for item in batch_metadata],
                 [item['semantic_density_score'] for item in batch_metadata],
                 [item['information_value_score'] for item in batch_metadata],
+                [item['image_links'][:8192] for item in batch_metadata],
             ]
             
             try:

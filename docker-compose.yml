@@ -68,6 +68,9 @@ services:
     container_name: beaglemind-api
     ports:
       - "8000:8000"
+    environment:
+      - MILVUS_HOST=standalone
+      - MILVUS_PORT=19530
     volumes:
       - ./beaglemind-api/onnx:/app/onnx:ro
     depends_on:
@@ -83,6 +86,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./beaglemind-frontend/.env.local
+    environment:
+      - KNOWLEDGE_BASE_URL=http://beaglemind-api:8000
+      - KB_COLLECTION_NAME=beaglemind_col
     volumes:
       - ./beaglemind-frontend/.env.local:/.env.local:ro
 

@@ -181,6 +181,7 @@ class RetrievalService:
             FieldSchema(name="file_path", dtype=DataType.VARCHAR, max_length=1000),
             FieldSchema(name="file_type", dtype=DataType.VARCHAR, max_length=50),
             FieldSchema(name="source_link", dtype=DataType.VARCHAR, max_length=2000),
+            FieldSchema(name="github_link", dtype=DataType.VARCHAR, max_length=2000),
             FieldSchema(name="chunk_index", dtype=DataType.INT64),
             FieldSchema(name="language", dtype=DataType.VARCHAR, max_length=50),
             FieldSchema(name="has_code", dtype=DataType.BOOL),
@@ -188,6 +189,7 @@ class RetrievalService:
             FieldSchema(name="content_quality_score", dtype=DataType.FLOAT),
             FieldSchema(name="semantic_density_score", dtype=DataType.FLOAT),
             FieldSchema(name="information_value_score", dtype=DataType.FLOAT),
+            FieldSchema(name="image_links", dtype=DataType.VARCHAR, max_length=8192),
         ]
         
         schema = CollectionSchema(fields, "Repository content with semantic chunking")       
@@ -248,9 +250,9 @@ class RetrievalService:
         
         output_fields = ["document"]
         enhanced_fields = [
-            "file_name", "file_path", "file_type", "source_link", "chunk_index", 
+            "file_name", "file_path", "file_type", "source_link", "github_link", "chunk_index", 
             "language", "has_code", "repo_name", "content_quality_score", 
-            "semantic_density_score", "information_value_score"
+            "semantic_density_score", "information_value_score", "image_links"
         ]
         
         if include_metadata:
