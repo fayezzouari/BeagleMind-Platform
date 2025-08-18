@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, ChevronDown, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ModelSelector } from '@/components/model-selector';
@@ -18,6 +18,7 @@ interface ChatInputProps {
 export function ChatInput({ onSendMessage, disabled, status, provider, model, onModelChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedTool, setSelectedTool] = useState<string>('none');
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(true);
 
   const promptSuggestions = [
     "What are the GPIO pins on BeagleBoard-X15?",
@@ -57,18 +58,30 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
       {/* Prompt Suggestions */}
       <div className="p-4 pb-2 border-b border-slate-800/50">
         <div className="max-w-4xl mx-auto">
-          <h3 className="text-sm font-medium text-slate-300 mb-3">Quick suggestions:</h3>
-          <div className="flex flex-wrap gap-2">
-            {promptSuggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1.5 text-xs bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-full text-slate-300 hover:text-cyan-400 transition-colors duration-200"
-              >
-                {suggestion}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-slate-300">Quick suggestions:</h3>
+            <button
+              type="button"
+              onClick={() => setShowSuggestions(v => !v)}
+              aria-label={showSuggestions ? 'Hide quick suggestions' : 'Show quick suggestions'}
+              className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 border border-transparent hover:border-slate-700 transition-colors"
+            >
+              {showSuggestions ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
           </div>
+          {showSuggestions && (
+            <div className="flex flex-wrap gap-2">
+              {promptSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="px-3 py-1.5 text-xs bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-full text-slate-300 hover:text-cyan-400 transition-colors duration-200"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
