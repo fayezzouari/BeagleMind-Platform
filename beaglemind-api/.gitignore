@@ -7,7 +7,6 @@ app/routers/__pycache__
 app/.env
 __pycache__
 app/services/search_vectorstore.py
-onnx
 app/data
 .env
 volumes

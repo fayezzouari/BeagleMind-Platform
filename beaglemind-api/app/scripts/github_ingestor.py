@@ -431,13 +431,16 @@ class GitHubDirectIngester:
             logger.warning(f"Failed to fetch {file_info['path']}: {e}")
             return None
     
-    def extract_images_and_links(self, content: str, base_url: str = "") -> Tuple[List[str], List[str], List[str]]:
+    def extract_images_and_links(self, content: str, base_url: str = "", repo_owner: str = "", repo_name: str = "", branch: str = "") -> Tuple[List[str], List[str], List[str]]:
         """
         Extract image links, attachment links, and external links from content.
         
         Args:
             content: Text content to analyze
             base_url: Base URL for resolving relative links
+            repo_owner: GitHub repository owner (for repo-root path resolution)
+            repo_name: GitHub repository name (for repo-root path resolution)
+            branch: Branch name (for repo-root path resolution)
             
         Returns:
             Tuple of (image_links, attachment_links, external_links)
@@ -462,6 +465,28 @@ class GitHubDirectIngester:
                     image_url = urljoin(base_url, image_url)
                 
                 image_links.append(image_url)
+
+        # Extract reStructuredText images (.. image::, .. figure::, and substitution images)
+        # Patterns capture the path right after the directive
+        rst_image_patterns = [
+            r'^\s*\.\.\s+image::\s+(\S+)',
+            r'^\s*\.\.\s+figure::\s+(\S+)',
+            r'^\s*\.\.\s*\|[^|]+\|\s+image::\s+(\S+)',
+        ]
+        for pattern in rst_image_patterns:
+            for match in re.finditer(pattern, content, flags=re.IGNORECASE | re.MULTILINE):
+                rst_path = match.group(1).strip()
+                # If already absolute URL, use as-is
+                if rst_path.startswith(('http://', 'https://')):
+                    full_url = rst_path
+                else:
+                    if rst_path.startswith('/') and repo_owner and repo_name and branch:
+                        # Repo-root relative path
+                        full_url = f"https://github.com/{repo_owner}/{repo_name}/blob/{branch}{rst_path}"
+                    else:
+                        # Relative to the file's directory
+                        full_url = urljoin(base_url, rst_path)
+                image_links.append(full_url)
         
         # Extract links to attachments (PDFs, documents, etc.)
         attachment_patterns = [
@@ -772,9 +797,21 @@ class GitHubDirectIngester:
 
         # Extract images and links
         logger.info(f"[PROCESS] Extracting images and links...")
-        base_url = f"https://github.com/{repo_owner}/{repo_name}/blob/{branch}/"
-        image_links, attachment_links, external_links = self.extract_images_and_links(content, base_url)
-        # Convert any GitHub blob image links to raw URLs, keep externals as-is
+        # Build a base URL that points to the directory of the file for proper relative resolution
+        file_dir = os.path.dirname(file_info['path'])
+        if file_dir:
+            base_url = f"https://github.com/{repo_owner}/{repo_name}/blob/{branch}/{file_dir}/"
+        else:
+            base_url = f"https://github.com/{repo_owner}/{repo_name}/blob/{branch}/"
+
+        image_links, attachment_links, external_links = self.extract_images_and_links(
+            content,
+            base_url,
+            repo_owner,
+            repo_name,
+            branch,
+        )
+        # Convert any GitHub blob image links to raw URLs at file scope (may be filtered per chunk later)
         raw_image_links = [self._to_raw_github(u) for u in image_links]
         logger.info(f"[PROCESS] Found {len(image_links)} images, {len(attachment_links)} attachments, {len(external_links)} external links")
         
@@ -813,6 +850,9 @@ class GitHubDirectIngester:
             github_link = file_info['source_link']
             docs_link = self._to_docs_link(repo_owner, repo_name, branch, file_info['path'], github_link)
 
+            # Convert chunk-specific images to raw GitHub URLs
+            raw_chunk_images = [self._to_raw_github(u) for u in chunk_images]
+
             chunk_metadata = {
                 'id': str(uuid.uuid4()),
                 'document': chunk,
@@ -828,7 +868,7 @@ class GitHubDirectIngester:
                 'content_quality_score': content_analysis['content_quality_score'],
                 'semantic_density_score': content_analysis['semantic_density_score'],
                 'information_value_score': content_analysis['information_value_score'],
-                'image_links': json.dumps(raw_image_links) if raw_image_links else '[]',
+                'image_links': json.dumps(raw_chunk_images) if raw_chunk_images else '[]',
             }
             
             chunk_metadata_list.append(chunk_metadata)

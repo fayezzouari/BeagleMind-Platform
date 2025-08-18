@@ -7,7 +7,7 @@ export const maxDuration = 30;
 // Configuration constants
 const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'http://localhost:8000';
 // Make collection configurable; default to backend's expected name
-const KB_COLLECTION_NAME = 'beagle';
+const KB_COLLECTION_NAME = 'beagleboard';
 
 // Types for the retrieve API
 interface DocumentMetadata {
@@ -134,6 +134,25 @@ function buildContextFromResults(
         }
       } catch {}
     }
+    // Optional: support single "image_url" or array in metadata without using any
+    if (!imageBlock) {
+      const maybeImageUrl = (meta as Record<string, unknown>)?.image_url;
+      let urls: string[] = [];
+      if (typeof maybeImageUrl === 'string') {
+        try {
+          const parsed = JSON.parse(maybeImageUrl);
+          if (Array.isArray(parsed)) urls = parsed.filter((u: unknown): u is string => typeof u === 'string');
+          else if (maybeImageUrl.startsWith('http')) urls = [maybeImageUrl];
+        } catch {
+          if (maybeImageUrl.startsWith('http')) urls = [maybeImageUrl];
+        }
+      } else if (Array.isArray(maybeImageUrl)) {
+        urls = maybeImageUrl.filter((u: unknown): u is string => typeof u === 'string');
+      }
+      if (urls.length > 0) {
+        imageBlock = '\n' + urls.map((u: string) => `![context image](${u})`).join('\n');
+      }
+    }
     const block = `${header}:\n${clipped}${sourceLine}${imageBlock}`;
     used += block.length + 2;
     chunks.push(block);
@@ -194,6 +213,17 @@ FORUM REPLY HANDLING:
 - When you use information coming from a forum reply, explicitly note that it is from a forum reply and include the forum reply link inline as the citation.
   Example: According to a BeagleBoard forum reply about cape pinmux changes [forum reply](https://forum.beagleboard.org/...).
 - Avoid over-citation: cite once per paragraph for related sentences.
+ - Avoid over-citation: cite once per paragraph for related sentences.
+
+DETAIL & CONTEXT USAGE:
+- Prefer detailed, specific responses when <context> provides concrete data. Synthesize across multiple Context N blocks and cite each source you use.
+- Include exact values, commands, file paths, pin names, versions, and settings found in the context. Avoid vague summaries when specifics are available.
+- If multiple snippets contribute to the answer, weave them logically and attribute each snippet with a citation at sentence/paragraph level.
+
+IMAGE USAGE (RAW GITHUB):
+- If metadata includes image links (image_links or image_url), they are raw GitHub URLs. When images help, embed up to 3 relevant images inline using markdown: ![alt](URL).
+- Choose images that directly illustrate the explanation and briefly describe them in surrounding text.
+- Do not invent or alter URLs. Use only those provided in metadata.
 \nSELF-CHECK BEFORE SENDING FINAL TOKEN (perform silently, then fix if needed):\n- If a <sources> block exists: Does answer contain inline [text](URL) citations?\n- Does it end with a '## References' section listing each cited URL exactly once?\n- Are there any cited URLs not in <sources>? (Remove them if so.)\n- Any URL in <sources> used but not cited? (Add a citation sentence.)\nIf any check fails, correct the answer BEFORE finalizing the stream.\n
 `;
 

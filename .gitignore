@@ -10,12 +10,12 @@
 /beaglemind-api/app/.env
 /beaglemind-api/__pycache__
 /beaglemind-api/app/services/search_vectorstore.py
-/beaglemind-api/onnx
+# /beaglemind-api/onnx
 /beaglemind-api/app/data
 /beaglemind-api/.env
 /volumes
 /beaglemind-api/app/services/persist_knowledge_service.py
-/beaglemind-api/data
+# /beaglemind-api/data
 # Frontend ignores (prefixed with beaglemind-frontend/)
 /beaglemind-frontend/node_modules
 /beaglemind-frontend/.pnp
