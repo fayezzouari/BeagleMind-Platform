@@ -6,6 +6,7 @@ This service handles the ingestion of GitHub repositories into Milvus collection
 """
 
 import logging
+import re
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any
@@ -42,6 +43,26 @@ class GitHubIngestionService:
             
             # Get or create ingester for this collection
             ingester = self.get_or_create_ingester(collection_name)
+            # Attempt to prevent duplicates: if data for this repo already exists in the collection, skip
+            try:
+                m = re.match(r'https://github\.com/([^/]+)/([^/]+)/?', github_url.rstrip('/'))
+                repo_owner, repo_name = (m.group(1), m.group(2)) if m else ("", "")
+                if repo_name:
+                    # Ensure collection is loaded
+                    ingester.collection.load()
+                    existing = ingester.collection.query(
+                        expr=f'repo_name == "{repo_name}"',
+                        output_fields=["id"],
+                        limit=1
+                    )
+                    if existing:
+                        logger.info(f"[SERVICE] Skipping ingestion for {github_url}: repo '{repo_name}' already present in collection '{collection_name}'")
+                        return {
+                            "success": True,
+                            "message": f"Skipped: repository '{repo_owner}/{repo_name}' already ingested into '{collection_name}'"
+                        }
+            except Exception as e:
+                logger.warning(f"[SERVICE] Duplicate check failed (continuing with ingestion): {e}")
             
             # Ingest repository (this is the blocking operation)
             result = ingester.ingest_repository(

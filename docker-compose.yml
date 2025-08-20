@@ -88,9 +88,9 @@ services:
       - ./beaglemind-frontend/.env.local
     environment:
       - KNOWLEDGE_BASE_URL=http://beaglemind-api:8000
-      - KB_COLLECTION_NAME=beaglemind_col
+      - KB_COLLECTION_NAME=beagleboard
     volumes:
-      - ./beaglemind-frontend/.env.local:/.env.local:ro
+      - ./beaglemind-frontend/.env.local:/app/.env.local:ro
 
 networks:
   default:

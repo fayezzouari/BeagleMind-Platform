@@ -138,6 +138,15 @@ def ingest_forum_json(json_path: str, collection_name: str = "beaglemind_col", m
     logger.info(f"Embedding dimension: {embedding_dim}")
     
     collection = get_or_create_collection(collection_name, embedding_dim)
+    # Duplicate prevention: if collection already contains forum data, skip
+    try:
+        collection.load()
+        existing = collection.query(expr='file_type == ".forum"', output_fields=["id"], limit=1)
+        if existing:
+            logger.info(f"[DUP-CHECK] Forum data already present in '{collection_name}'. Skipping forum ingestion.")
+            return
+    except Exception as e:
+        logger.warning(f"[DUP-CHECK] Forum duplicate check failed, continuing: {e}")
     
     with open(json_path, 'r') as f:
         threads = json.load(f)
