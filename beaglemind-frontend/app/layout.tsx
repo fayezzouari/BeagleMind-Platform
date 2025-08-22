@@ -28,6 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Explicit favicon links to override default Vercel icon */}
+        <link rel="icon" href="/beagleboard-logo.png" />
+        <link rel="apple-touch-icon" href="/beagleboard-logo.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
