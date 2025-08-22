@@ -5,7 +5,7 @@ import { convertToModelMessages, streamText, UIMessage } from 'ai';
 export const maxDuration = 30;
 
 // Configuration constants
-const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'http://localhost:8000';
+const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'https://mind-api.beagleboard.org';
 // Make collection configurable; default to backend's expected name
 const KB_COLLECTION_NAME = 'beagleboard';
 

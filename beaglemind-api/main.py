@@ -56,7 +56,7 @@ async def startup_tasks():
     logger.info("[STARTUP] Running one-time startup tasks: initial ingestion and forum import")
 
     # Determine API base URL inside Docker or local
-    api_base = os.getenv("SELF_API_BASE", "http://localhost:8000")
+    api_base = os.getenv("SELF_API_BASE", "https://mind-api.beagleboard.org")
 
     # Prepare ingest body
     ingest_body = {
