@@ -279,7 +279,8 @@ export default function BeagleMindApp() {
         {/* Layout: Sidebar + Content */}
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {/* Desktop sidebar (can be collapsed) */}
-          {/* Desktop sidebar: slides in/out when collapsed */}
+          {/* Desktop sidebar: slides in/out when collapsed (only on chat view) */}
+          {view === 'chat' && (
           <aside className={`hidden lg:block fixed left-0 top-20 bottom-0 z-40 transform transition-all duration-300 ease-in-out ${sidebarCollapsed ? '-translate-x-full w-0' : 'translate-x-0 w-96'} border-r border-neutral-800 bg-slate-950`}>
             <div className={`h-full ${sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-96'}`}>
               <Sidebar
@@ -292,8 +293,10 @@ export default function BeagleMindApp() {
               />
             </div>
           </aside>
+          )}
 
           {/* Desktop collapse/expand button (visible on large screens) */}
+          {view === 'chat' && (
           <button
             aria-label="Toggle sidebar collapse"
             onClick={() => {
@@ -303,9 +306,10 @@ export default function BeagleMindApp() {
           >
             {sidebarCollapsed ? <ArrowRightCircle className="h-5 w-5" /> : <ArrowLeftCircle className="h-5 w-5" />}
           </button>
+          )}
 
-          {/* Mobile slide-over sidebar */}
-          {sidebarOpen && (
+          {/* Mobile slide-over sidebar (only on chat view) */}
+          {view === 'chat' && sidebarOpen && (
             <div className="fixed inset-0 z-40 lg:hidden">
               <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
               <div className="absolute inset-y-0 left-0 w-96 bg-slate-950 border-r border-neutral-800 shadow-xl">
@@ -321,7 +325,8 @@ export default function BeagleMindApp() {
             </div>
           )}
 
-          {/* Toggle arrow button */}
+          {/* Toggle arrow button (mobile) - only show on chat view */}
+          {view === 'chat' && (
           <button
             aria-label="Toggle history sidebar"
             className="fixed left-3 top-24 z-50 inline-flex items-center justify-center h-8 w-8 rounded-full border border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800 shadow lg:hidden"
@@ -329,6 +334,7 @@ export default function BeagleMindApp() {
           >
             {sidebarOpen ? <ArrowLeftCircle className="h-5 w-5" /> : <ArrowRightCircle className="h-5 w-5" />}
           </button>
+          )}
 
           {/* Main content */}
           <div className={`flex-1 flex flex-col transition-all duration-300 ${view === 'chat' ? 'pt-0' : ''}`}>
