@@ -1,5 +1,10 @@
 # Use official Node.js image as the base
 FROM node:20-alpine AS builder
+# Provide defaults at build-time to satisfy NextAuth during build; override via runtime env
+ARG NEXTAUTH_URL=http://localhost:3000
+ARG NEXTAUTH_SECRET=dev_only_secret_do_not_use_in_prod
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 
 WORKDIR /app
 
@@ -13,6 +18,11 @@ RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
+# Carry over required NextAuth envs with safe defaults (override via compose env)
+ARG NEXTAUTH_URL=http://localhost:3000
+ARG NEXTAUTH_SECRET=dev_only_secret_do_not_use_in_prod
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 
 # Install only production dependencies
 COPY package.json package-lock.json ./

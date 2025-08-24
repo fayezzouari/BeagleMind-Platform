@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Sidebar } from '@/components/sidebar';
@@ -8,49 +8,199 @@ import { ChatArea } from '@/components/chat-area';
 import { ChatInput } from '@/components/chat-input';
 import { WizardArea } from '@/components/wizard-area';
 import { Button } from '@/components/ui/button';
-import { Menu, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, Wand2, ArrowLeftCircle, ArrowRightCircle } from 'lucide-react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 export default function BeagleMindApp() {
+  const { data: session, status: authStatus } = useSession();
+  const router = useRouter();
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      router.replace('/login');
+    }
+  }, [authStatus, router]);
+
   const [view, setView] = useState<'chat' | 'wizard'>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('default');
   const [modelProvider, setModelProvider] = useState<'openai' | 'groq'>('openai');
   const [modelName, setModelName] = useState<string>('gpt-4o');
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      api: '/api/chat',
-    }),
+  const [chatKey, setChatKey] = useState<string>(() => `chat-${Date.now()}`);
+  const { messages, sendMessage, status, stop } = useChat({
+    id: chatKey,
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    onFinish: async ({ message }) => {
+      // When first assistant message in a thread arrives, create/save conversation and name it
+      try {
+  const userMsg = [...messages].reverse().find((mm) => mm.role === 'user');
+        // Determine existing conversation id, if any
+        const existingId = createdConvIdRef.current || (currentChatIdRef.current && currentChatIdRef.current !== 'default' ? currentChatIdRef.current : undefined);
+        // Create conversation if none exists yet for this thread
+        if (!existingId) {
+          const userText = userMsg ? toTextParts(userMsg.parts).map(p => p.text).join(' ') : (pendingFirstMessageRef.current || '');
+          const assistantText = toTextParts(message.parts).map(p => p.text).join(' ');
+          const title = await proposeTitle(userText || 'New Chat', assistantText || '');
+          const resp = await fetch(`/api/conversations/create`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, first_message: userText })
+          });
+          const data = await resp.json();
+          if (data?.id) {
+            const newChatId = data.id as string;
+            setCurrentChatId(newChatId);
+            createdConvIdRef.current = newChatId;
+            // add to local list
+            setConversations((prev) => [{ id: newChatId, title, lastMessage: '', timestamp: new Date() }, ...prev.filter(c=>c.id!=='default')]);
+            // clear pending first message now that it's been attached to the conversation
+            pendingFirstMessageRef.current = null;
+          }
+        }
+        // Append the last user and assistant messages
+  const lastUser = userMsg ? [{ role: 'user', content: toTextParts(userMsg.parts).map(p => p.text).join(' ') }] : [];
+  const lastAssistant = [{ role: 'assistant', content: toTextParts(message.parts).map(p => p.text).join(' ') }];
+        const convId = createdConvIdRef.current || (currentChatIdRef.current && currentChatIdRef.current !== 'default' ? currentChatIdRef.current : undefined);
+        if (convId) {
+          await fetch(`/api/conversations/append`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversation_id: convId, messages: [...lastUser, ...lastAssistant], last_preview: lastAssistant[0].content.slice(0, 200) })
+          });
+          // update local conversation preview/time
+          setConversations((prev) => prev.map(c => c.id === convId ? { ...c, lastMessage: lastAssistant[0].content, timestamp: new Date() } : c));
+        }
+      } catch {}
+    }
   });
 
-  const [conversations, setConversations] = useState([
-    {
-      id: 'default',
-      title: 'New Chat',
-      lastMessage: 'Welcome to BeagleMind!',
-      timestamp: new Date(),
-    },
-  ]);
+  async function proposeTitle(userText: string, assistantText: string): Promise<string> {
+    const base = (userText || assistantText || '').trim();
+    // Simple heuristic if model title route not implemented client-side
+    if (!base) return 'New Chat';
+    const first = base.split(/[\.\n]/)[0];
+    return (first.length > 60 ? first.slice(0, 57) + '…' : first) || 'New Chat';
+  }
+
+  function toTextParts(parts: unknown): Array<{ type: string; text: string }> {
+    if (!Array.isArray(parts)) return [];
+    const out: Array<{ type: string; text: string }> = [];
+    for (const p of parts) {
+      if (p && typeof p === 'object' && 'text' in p) {
+        const text = (p as { text?: unknown }).text;
+        if (typeof text === 'string') {
+          const typeVal = (p as { type?: unknown }).type;
+          out.push({ type: typeof typeVal === 'string' ? typeVal : 'text', text });
+        }
+      }
+    }
+    return out;
+  }
+
+  const [conversations, setConversations] = useState<{
+    id: string; title: string; lastMessage: string; timestamp: Date;
+  }[]>([]);
+  // Track created conversation id and the latest currentChatId across closures
+  const createdConvIdRef = useRef<string | null>(null);
+  const currentChatIdRef = useRef<string>(currentChatId);
+  const pendingFirstMessageRef = useRef<string | null>(null);
+  useEffect(() => { currentChatIdRef.current = currentChatId; }, [currentChatId]);
+
+  // Load conversations for the user on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+  type SessionWithSub = typeof session & { user_sub?: string };
+  const s = session as SessionWithSub | null;
+  if (!session?.user?.email && !s?.user_sub) return;
+  const resp = await fetch(`/api/conversations/list`, { method: 'POST' });
+        const data = await resp.json();
+        const items = (data?.items || []) as Array<{ id: string; title: string; lastMessage: string; updated_at?: string }>;
+        setConversations(items.map(i => ({ id: i.id, title: i.title || 'Untitled', lastMessage: i.lastMessage || '', timestamp: i.updated_at ? new Date(i.updated_at) : new Date() })));
+      } catch {}
+    };
+    load();
+  }, [session]);
 
   const handleNewChat = () => {
-    const newChatId = `chat-${Date.now()}`;
-    const newConversation = {
-      id: newChatId,
-      title: 'New Chat',
-      lastMessage: '',
-      timestamp: new Date(),
-    };
-    setConversations([newConversation, ...conversations]);
-    setCurrentChatId(newChatId);
-    setSidebarOpen(true); // ensure sidebar becomes visible after creating
+    // Reset to a new thread: keep temporary id until first assistant message creates server-side record
+  // Clear any history view, stop any running generation, reset refs and chat key.
+  setHistoryView(null);
+  stop();
+  setCurrentChatId('default');
+  currentChatIdRef.current = 'default';
+  createdConvIdRef.current = null;
+  setChatKey(`chat-${Date.now()}`); // reset useChat state
+  setSidebarOpen(true);
   };
 
-  const handleSelectChat = (chatId: string) => {
-    setCurrentChatId(chatId);
+  const [historyView, setHistoryView] = useState<{ convId: string; items: Array<{ id: string; role: 'user'|'assistant'; parts: Array<{ type: string; text: string }> }> } | null>(null);
+  const handleSelectChat = async (chatId: string) => {
+  setCurrentChatId(chatId);
+  currentChatIdRef.current = chatId;
     setSidebarOpen(false);
+    try {
+      // Load messages and replace current UI messages with that history
+  const resp = await fetch(`/api/conversations/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: chatId }) });
+      const data = await resp.json();
+  const items = (data?.items || []) as Array<{ role: 'user'|'assistant'; content: string; id?: string }>;
+  const uiItems = items.map((it, idx) => ({ id: it.id || `${chatId}-${idx}`, role: it.role, parts: [{ type: 'text', text: it.content }] }));
+      // Show history view and allow resume
+      setHistoryView({ convId: chatId, items: uiItems });
+      // Prepare chat hook to resume into this conversation id on next message
+      createdConvIdRef.current = chatId;
+      setChatKey(`chat-${chatId}`);
+    } catch {}
   };
 
-  const handleSendMessage = (data: { text: string; tool?: string }) => {
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+  const resp = await fetch('/api/conversations/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: chatId }) });
+  const data = await resp.json();
+  console.info('delete response', resp.status, data);
+  if (!resp.ok) return;
+  // remove from local list
+  setConversations((prev) => prev.filter(c => c.id !== chatId));
+      // if it was the current conversation, reset to default
+      if (currentChatIdRef.current === chatId) {
+        setCurrentChatId('default');
+        currentChatIdRef.current = 'default';
+        createdConvIdRef.current = null;
+        setChatKey(`chat-${Date.now()}`);
+        setHistoryView(null);
+      }
+      // optional: show server deletion counts
+      if (data?.result) {
+        console.info('deleted', data.result.deleted_conversation, 'conversation(s),', data.result.deleted_messages, 'messages');
+      }
+    } catch (err) {}
+  };
+
+  const handleSendMessage = async (data: { text: string; tool?: string }) => {
+    // Persist the user message: if this thread already has a conversation id, append it;
+    // otherwise save it as the conversation first message so it appears in history later.
+    const convId = createdConvIdRef.current || (currentChatIdRef.current && currentChatIdRef.current !== 'default' ? currentChatIdRef.current : undefined);
+    try {
+      if (convId) {
+        // append the single user message
+        fetch('/api/conversations/append', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: convId, messages: [{ role: 'user', content: data.text }], last_preview: data.text.slice(0, 200) })
+        }).catch(() => {});
+        // update local preview/time
+        setConversations((prev) => prev.map(c => c.id === convId ? { ...c, lastMessage: data.text, timestamp: new Date() } : c));
+      } else {
+        // no conversation yet: keep pending first message locally and attach it when the assistant replies
+        pendingFirstMessageRef.current = data.text;
+      }
+    } catch (err) {
+      // ignore persistence errors; we still send the message to the model
+    }
+
+    // Send the message to the chat transport (do this after initiating persistence)
     if (data.tool) {
       sendMessage({ 
         text: data.text,
@@ -60,6 +210,15 @@ export default function BeagleMindApp() {
       sendMessage({ text: data.text, metadata: { provider: modelProvider, model: modelName } });
     }
   };
+
+  // Loading gate while checking session
+  if (authStatus === 'loading') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-200">
+        <div className="animate-pulse text-sm opacity-80">Loading your session…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-slate-100">
@@ -89,86 +248,158 @@ export default function BeagleMindApp() {
           >
             <Wand2 className="h-5 w-5" /> Wizard
           </Button>
+          {/* History toggle for mobile */}
+          <Button
+            variant="ghost"
+            className="lg:hidden h-10 px-3 text-neutral-300 hover:text-white"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5 mr-1" /> History
+          </Button>
           <div className="hidden md:block text-neutral-400 text-sm">BeagleBoard AI Assistant</div>
+          {/* User info */}
+          {session?.user && (
+            <div className="flex items-center gap-3 pl-2 ml-2 border-l border-neutral-800">
+              <div className="text-right hidden sm:block">
+                <div className="text-white font-medium leading-4">{session.user.name ?? 'User'}</div>
+                <div className="text-neutral-400 text-xs">{session.user.email ?? ''}</div>
+              </div>
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-neutral-800 border border-neutral-700">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={(session.user.image as string) || '/beagleboard-logo.png'} alt="User avatar" className="w-full h-full object-cover" />
+              </div>
+              <Button variant="ghost" className="text-neutral-300 hover:text-white" onClick={() => setShowSignOutConfirm(true)}>
+                Sign out
+              </Button>
+            </div>
+          )}
         </nav>
-      </header>
+  </header>
 
-      {/* Body Area */}
-      <div className="flex-1 relative overflow-hidden">
-        {/* Sidebar (chat only) */}
-        {view === 'chat' && (
-          <div className={`fixed inset-y-20 top-20 left-0 z-40 w-80 transform transition-transform duration-300 ease-in-out bg-slate-950 border-r border-neutral-800 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-            <Sidebar
-              conversations={conversations}
-              currentChatId={currentChatId}
-              onNewChat={handleNewChat}
-              onSelectChat={handleSelectChat}
-              onClose={() => setSidebarOpen(false)}
-            />
+        {/* Layout: Sidebar + Content */}
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          {/* Desktop sidebar (can be collapsed) */}
+          {/* Desktop sidebar: slides in/out when collapsed */}
+          <aside className={`hidden lg:block fixed left-0 top-20 bottom-0 z-40 transform transition-all duration-300 ease-in-out ${sidebarCollapsed ? '-translate-x-full w-0' : 'translate-x-0 w-96'} border-r border-neutral-800 bg-slate-950`}>
+            <div className={`h-full ${sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-96'}`}>
+              <Sidebar
+                conversations={conversations}
+                currentChatId={currentChatId}
+                onNewChat={handleNewChat}
+                onSelectChat={handleSelectChat}
+                onClose={() => setSidebarOpen(false)}
+                onDelete={handleDeleteChat}
+              />
+            </div>
+          </aside>
+
+          {/* Desktop collapse/expand button (visible on large screens) */}
+          <button
+            aria-label="Toggle sidebar collapse"
+            onClick={() => {
+              setSidebarCollapsed((v) => { const nv = !v; if (nv) setSidebarOpen(false); return nv; });
+            }}
+            className={`hidden lg:flex fixed top-28 z-50 items-center justify-center h-8 w-8 rounded-full border border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800 shadow ${sidebarCollapsed ? 'left-3' : 'left-[calc(384px+12px)]'}`}
+          >
+            {sidebarCollapsed ? <ArrowRightCircle className="h-5 w-5" /> : <ArrowLeftCircle className="h-5 w-5" />}
+          </button>
+
+          {/* Mobile slide-over sidebar */}
+          {sidebarOpen && (
+            <div className="fixed inset-0 z-40 lg:hidden">
+              <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
+              <div className="absolute inset-y-0 left-0 w-96 bg-slate-950 border-r border-neutral-800 shadow-xl">
+                <Sidebar
+                  conversations={conversations}
+                  currentChatId={currentChatId}
+                  onNewChat={handleNewChat}
+                  onSelectChat={handleSelectChat}
+                  onClose={() => setSidebarOpen(false)}
+                  onDelete={handleDeleteChat}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Toggle arrow button */}
+          <button
+            aria-label="Toggle history sidebar"
+            className="fixed left-3 top-24 z-50 inline-flex items-center justify-center h-8 w-8 rounded-full border border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800 shadow lg:hidden"
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            {sidebarOpen ? <ArrowLeftCircle className="h-5 w-5" /> : <ArrowRightCircle className="h-5 w-5" />}
+          </button>
+
+          {/* Main content */}
+          <div className={`flex-1 flex flex-col transition-all duration-300 ${view === 'chat' ? 'pt-0' : ''}`}>
+            {view === 'chat' && (
+              <>
+                <div className="flex-1 overflow-hidden pt-2 px-4 md:pl-6 md:pr-6">
+                  <div className="mb-2">
+                    {historyView && (
+                      <div className="flex items-center justify-between rounded-md border border-amber-600/40 bg-amber-900/20 px-3 py-2 text-amber-200">
+                        <div className="text-xs">Viewing previous conversation</div>
+                        <Button size="sm" className="h-7 px-3 bg-neutral-200 text-neutral-900 hover:bg-white" onClick={() => { setHistoryView(null); stop(); }}>
+                          Resume chat
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <ChatArea
+                    messages={(historyView ? historyView.items : messages
+                      .filter(m => m.role === 'user' || m.role === 'assistant')
+                      .map(m => ({
+                        id: m.id,
+                        role: m.role as 'user' | 'assistant',
+                        parts: toTextParts(m.parts)
+                      }))
+                    )}
+                    status={status}
+                  />
+                </div>
+                <div className="border-t border-neutral-800 bg-neutral-900/50 px-4 md:px-6 py-2">
+                  <ChatInput
+                    onSendMessage={handleSendMessage}
+                    disabled={status !== 'ready'}
+                    status={status}
+                    provider={modelProvider}
+                    model={modelName}
+                    onModelChange={({ provider, model }) => { setModelProvider(provider); setModelName(model); }}
+                  />
+                </div>
+              </>
+            )}
+            {view === 'wizard' && (
+              <div className="h-full overflow-hidden"><WizardArea provider={modelProvider} model={modelName} /></div>
+            )}
+          </div>
+        </div>
+        {/* Sign out confirmation modal */}
+        {showSignOutConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSignOutConfirm(false)} />
+            {/* Dialog */}
+            <div className="relative z-[101] w-full max-w-sm mx-auto rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+              <h3 className="text-lg font-semibold text-white">Sign out?</h3>
+              <p className="mt-2 text-sm text-neutral-300">You’ll be returned to the login page.</p>
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <Button variant="ghost" className="text-neutral-300 hover:text-white" onClick={() => setShowSignOutConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-500 text-white"
+                  onClick={() => {
+                    setShowSignOutConfirm(false);
+                    signOut({ callbackUrl: '/login' });
+                  }}
+                >
+                  Sign out
+                </Button>
+              </div>
+            </div>
           </div>
         )}
-
-        {/* Floating Sidebar Toggle (chat only) */}
-    {view === 'chat' && (
-          <button
-            onClick={() => setSidebarOpen(o => !o)}
-            aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-      className={`group absolute top-24 z-50 h-10 w-10 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white shadow-md backdrop-blur transition-all duration-300 ${sidebarOpen ? 'left-[300px]' : 'left-2'}`}
-          >
-      {sidebarOpen ? <ChevronLeft className="h-6 w-6" /> : <ChevronRight className="h-6 w-6" />}
-          </button>
-        )}
-
-        {/* Overlay when sidebar open on small screens */}
-    {view === 'chat' && sidebarOpen && (
-          <div
-      className="fixed inset-0 top-20 bg-black/50 z-30 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        {/* Main content area (padded left when sidebar open on large screens) */}
-        <div className={`h-full flex flex-col transition-all duration-300 ${view === 'chat' ? 'pt-0' : ''}`}>
-          {view === 'chat' && (
-            <>
-              <div className="flex-1 overflow-hidden pt-2 px-4 md:pl-6 md:pr-6">
-                <ChatArea
-                  messages={messages
-                    .filter(m => m.role === 'user' || m.role === 'assistant')
-                    .map(m => ({
-                      id: m.id,
-                      role: m.role as 'user' | 'assistant',
-                      parts: Array.isArray(m.parts)
-                        ? m.parts
-                            .filter(p => 'text' in p && typeof p.text === 'string')
-                            .map(p => ({
-                              type: typeof p.type === 'string' ? p.type : '',
-                              text: (p as { text: string }).text || ''
-                            }))
-                        : []
-                    }))
-                  }
-                  status={status}
-                />
-              </div>
-              <div className="border-t border-neutral-800 bg-neutral-900/50 px-4 md:px-6 py-2">
-                <ChatInput
-                  onSendMessage={handleSendMessage}
-                  disabled={status !== 'ready'}
-                  status={status}
-                  provider={modelProvider}
-                  model={modelName}
-                  onModelChange={({ provider, model }) => { setModelProvider(provider); setModelName(model); }}
-                />
-              </div>
-            </>
-          )}
-          {view === 'wizard' && (
-            <div className="h-full overflow-hidden"><WizardArea provider={modelProvider} model={modelName} /></div>
-          )}
-        </div>
       </div>
-    </div>
   );
 }

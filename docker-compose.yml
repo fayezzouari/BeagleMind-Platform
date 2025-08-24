@@ -1,6 +1,14 @@
 version: '3.5'
 
 services:
+  mongo:
+    image: mongo:7
+    container_name: beaglemind-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/mongo:/data/db
+    restart: unless-stopped
   etcd:
     container_name: milvus-etcd
     image: quay.io/coreos/etcd:v3.5.18
@@ -71,10 +79,13 @@ services:
     environment:
       - MILVUS_HOST=standalone
       - MILVUS_PORT=19530
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DB=beaglemind
     volumes:
       - ./beaglemind-api/onnx:/app/onnx:ro
     depends_on:
       - standalone
+      - mongo
     restart: unless-stopped
 
   beaglemind-frontend:
@@ -87,8 +98,10 @@ services:
     env_file:
       - ./beaglemind-frontend/.env.local
     environment:
-      - KNOWLEDGE_BASE_URL=http://beaglemind-api:8000
-      - KB_COLLECTION_NAME=beagleboard
+      KNOWLEDGE_BASE_URL: http://beaglemind-api:8000
+      KB_COLLECTION_NAME: beagleboard
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-changeme-in-prod}
     volumes:
       - ./beaglemind-frontend/.env.local:/app/.env.local:ro
 
