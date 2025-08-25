@@ -14,6 +14,8 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       allowDangerousEmailAccountLinking: true,
+      // Increase network timeouts to avoid RPError on slow networks
+      httpOptions: { timeout: 15000 },
     }),
   ],
   // Required in production; provide a safe fallback for build-time (override via env at runtime)

@@ -276,10 +276,10 @@ export function WizardArea({ provider, model }: { provider?: 'openai' | 'groq'; 
 
   return (
     <>
-    <div className="flex h-full">
-      <div className="w-full max-w-3xl mx-auto p-6 flex flex-col gap-6">
-        <form onSubmit={generate} className="space-y-6 bg-slate-900/60 border border-slate-800 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-2">
+    <div className="flex flex-col h-full w-full items-center justify-center">
+      <div className="w-full max-w-3xl mx-auto p-2 sm:p-4 md:p-6 flex flex-col gap-4 md:gap-6">
+  <form onSubmit={generate} className="space-y-4 md:space-y-6 bg-slate-900/60 border border-slate-800 rounded-xl p-2 sm:p-4 md:p-6">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
             <img src="/beagleboard-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
             <div>
               <h1 className="text-2xl font-semibold text-slate-100">Project Wizard</h1>
@@ -296,7 +296,7 @@ export function WizardArea({ provider, model }: { provider?: 'openai' | 'groq'; 
               onChange={e => setGoals(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4">
             <div className="space-y-1">
               <label className="text-sm text-slate-300 font-medium">Hardware</label>
               <input
@@ -367,13 +367,13 @@ export function WizardArea({ provider, model }: { provider?: 'openai' | 'groq'; 
           </div>
         </form>
 
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 w-full">
           {plan ? (
-            <ScrollArea className="h-[calc(100vh-320px)] rounded-lg border border-slate-800 bg-slate-900/40">
+            <ScrollArea className="h-[calc(60vh)] sm:h-[calc(70vh)] md:h-[calc(100vh-320px)] rounded-lg border border-slate-800 bg-slate-900/40">
               <PlanBody compact />
             </ScrollArea>
           ) : (
-            <div className="h-[calc(100vh-320px)] flex items-center justify-center border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">
+            <div className="h-[calc(60vh)] sm:h-[calc(70vh)] md:h-[calc(100vh-320px)] flex items-center justify-center border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">
               Enter project details to generate a structured plan.
             </div>
           )}

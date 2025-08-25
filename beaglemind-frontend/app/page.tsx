@@ -134,7 +134,8 @@ export default function BeagleMindApp() {
   currentChatIdRef.current = 'default';
   createdConvIdRef.current = null;
   setChatKey(`chat-${Date.now()}`); // reset useChat state
-  setSidebarOpen(true);
+  // Do not auto-open sidebar on mobile; keep it hidden in responsive view by default
+  setSidebarOpen(false);
   };
 
   const [historyView, setHistoryView] = useState<{ convId: string; items: Array<{ id: string; role: 'user'|'assistant'; parts: Array<{ type: string; text: string }> }> } | null>(null);
@@ -221,10 +222,10 @@ export default function BeagleMindApp() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 text-slate-100">
+  <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
       {/* Global Navbar */}
-      <header className="flex items-center justify-between h-20 px-8 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur supports-[backdrop-filter]:bg-neutral-900/80 z-50 relative">
-        <div className="flex items-center gap-4 select-none">
+  <header className="sticky top-0 z-50 w-full flex flex-col md:flex-row items-center justify-between h-auto md:h-20 px-4 md:px-8 py-3 md:py-0 border-b border-neutral-800 bg-neutral-900/95 backdrop-blur supports-[backdrop-filter]:bg-neutral-900/80">
+  <div className="flex items-center gap-2 md:gap-4 select-none w-full md:w-auto">
           <div className="w-12 h-12 rounded overflow-hidden bg-neutral-800 border border-neutral-700">
             <img src="/beagleboard-logo.png" alt="BeagleBoard Logo" className="w-full h-full object-contain" />
           </div>
@@ -233,11 +234,11 @@ export default function BeagleMindApp() {
             <div className="text-sm text-neutral-400">beagleboard.org</div>
           </div>
         </div>
-        <nav className="flex items-center gap-4 text-sm">
+  <nav className="flex flex-wrap items-center gap-2 md:gap-4 text-sm w-full md:w-auto mt-2 md:mt-0">
           <Button
             variant={view === 'chat' ? 'default' : 'ghost'}
             className={`h-10 px-5 rounded-md text-sm font-medium ${view === 'chat' ? 'bg-neutral-200 text-neutral-900 hover:bg-white' : 'text-neutral-300 hover:text-white'}`}
-            onClick={() => { setView('chat'); }}
+            onClick={() => { setView('chat'); setSidebarOpen(false); }}
           >
             <Menu className="h-5 w-5 mr-1" /> Chat
           </Button>
@@ -277,12 +278,12 @@ export default function BeagleMindApp() {
   </header>
 
         {/* Layout: Sidebar + Content */}
-        <div className="flex-1 min-h-0 flex overflow-hidden">
+  <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Desktop sidebar (can be collapsed) */}
           {/* Desktop sidebar: slides in/out when collapsed (only on chat view) */}
           {view === 'chat' && (
-          <aside className={`hidden lg:block fixed left-0 top-20 bottom-0 z-40 transform transition-all duration-300 ease-in-out ${sidebarCollapsed ? '-translate-x-full w-0' : 'translate-x-0 w-96'} border-r border-neutral-800 bg-slate-950`}>
-            <div className={`h-full ${sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-96'}`}>
+          <aside className={`hidden lg:block fixed left-0 top-20 bottom-0 z-40 transform transition-all duration-300 ease-in-out ${sidebarCollapsed ? '-translate-x-full w-0' : 'translate-x-0 w-80'} border-r border-neutral-800 bg-slate-950`}>
+            <div className={`h-full ${sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-80'}`}> 
               <Sidebar
                 conversations={conversations}
                 currentChatId={currentChatId}
@@ -337,10 +338,10 @@ export default function BeagleMindApp() {
           )}
 
           {/* Main content */}
-          <div className={`flex-1 flex flex-col transition-all duration-300 ${view === 'chat' ? 'pt-0' : ''}`}>
+          <div className={`flex-1 flex flex-col transition-all duration-300 ${view === 'chat' ? 'pt-0' : ''} w-full md:w-auto`}> 
             {view === 'chat' && (
               <>
-                <div className="flex-1 overflow-hidden pt-2 px-4 md:pl-6 md:pr-6">
+                <div className="flex-1 overflow-hidden pt-2 px-2 sm:px-4 md:pl-6 md:pr-6">
                   <div className="mb-2">
                     {historyView && (
                       <div className="flex items-center justify-between rounded-md border border-amber-600/40 bg-amber-900/20 px-3 py-2 text-amber-200">
@@ -363,7 +364,7 @@ export default function BeagleMindApp() {
                     status={status}
                   />
                 </div>
-                <div className="border-t border-neutral-800 bg-neutral-900/50 px-4 md:px-6 py-2">
+                <div className="border-t border-neutral-800 bg-neutral-900/50 px-2 sm:px-4 md:px-6 py-2">
                   <ChatInput
                     onSendMessage={handleSendMessage}
                     disabled={status !== 'ready'}
@@ -376,7 +377,7 @@ export default function BeagleMindApp() {
               </>
             )}
             {view === 'wizard' && (
-              <div className="h-full overflow-hidden"><WizardArea provider={modelProvider} model={modelName} /></div>
+              <div className="h-full w-full overflow-auto"><WizardArea provider={modelProvider} model={modelName} /></div>
             )}
           </div>
         </div>
