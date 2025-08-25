@@ -26,22 +26,22 @@ function InnerMessageBubble({ message, streaming }: MessageBubbleProps) {
   };
 
   return (
-    <div className={`flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div className={`
-        w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
+        w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0
         ${isUser 
           ? 'bg-slate-800 border border-slate-700' 
           : 'bg-slate-800 border border-slate-700 overflow-hidden'
         }
       `}>
         {isUser ? (
-          <User className="h-4 w-4 text-slate-300" />
+          <User className="h-3.5 w-3.5 text-slate-300" />
         ) : (
           <img 
             src="/beagleboard-logo.png" 
             alt="BeagleBoard Logo" 
-            className="w-6 h-6 object-contain"
+            className="w-5 h-5 object-contain"
           />
         )}
       </div>
@@ -49,7 +49,7 @@ function InnerMessageBubble({ message, streaming }: MessageBubbleProps) {
       {/* Message content */}
       <div className={`flex-1 group ${isUser ? 'flex justify-end' : ''}`}>
         <div className={`
-          max-w-[85%] rounded-2xl p-4 border break-words overflow-hidden
+          max-w-[85%] rounded-xl p-3 border break-words overflow-hidden text-[0.94rem]
           ${isUser 
             ? 'bg-cyan-700 text-white border-cyan-700 rounded-tr-sm' 
             : 'bg-slate-850/50 text-slate-100 border-slate-800/50 rounded-tl-sm'
@@ -74,15 +74,15 @@ function InnerMessageBubble({ message, streaming }: MessageBubbleProps) {
 
         {/* Action buttons for assistant messages - simplified */}
         {!isUser && !streaming && (
-          <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0 text-slate-500 hover:text-slate-300"
+              className="h-6 w-6 p-0 text-slate-500 hover:text-slate-300"
               onClick={handleCopy}
               title="Copy message"
             >
-              <Copy className="h-3 w-3" />
+              <Copy className="h-2.5 w-2.5" />
             </Button>
           </div>
         )}

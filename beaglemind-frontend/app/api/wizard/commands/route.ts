@@ -21,16 +21,37 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400 });
     }
     const lang = body.language || 'C';
-    const prompt = `You are an expert embedded engineer for BeagleBoard.\nTASK TITLE: ${body.taskTitle}\nDETAIL: ${body.detail}\nHARDWARE: ${body.hardware}\nLANGUAGE: ${lang}\nGOALS: ${body.goals || ''}\nFOCUS: ${body.focus || ''}\nEXPERIENCE: ${body.experience || ''}\n\nProduce a STRICT JSON object ONLY with shape:\n{"commands":[{"cmd":"shell command","explanation":"short reason"}],"code":"OPTIONAL_${lang}_snippet_or_empty_string"}\nRules:\n- 3-8 commands, each minimal, safe, directly actionable.\n- Prefer standard Linux tooling (apt, git, make) & BeagleBoard context.\n- Avoid destructive operations (no rm -rf *, no sudo unless essential).\n- code snippet <= 80 lines, show key logic only, may be empty string if not useful.\n- NO text outside JSON.`;
+    const prompt = [
+      'You are an expert embedded engineer for BeagleBoard.',
+      'IMPORTANT: Focus STRICTLY on the CURRENT TASK described in DETAIL. Do NOT propose commands for subsequent steps.',
+      `TASK TITLE: ${body.taskTitle}`,
+      `DETAIL: ${body.detail}`,
+      `HARDWARE: ${body.hardware}`,
+      `LANGUAGE: ${lang}`,
+      `GOALS: ${body.goals || ''}`,
+      `FOCUS: ${body.focus || ''}`,
+      `EXPERIENCE: ${body.experience || ''}`,
+      '',
+      'Produce a STRICT JSON object ONLY with shape:',
+      `{"commands":[{"cmd":"shell command","explanation":"short reason"}],"code":"OPTIONAL_${lang}_snippet_or_empty_string"}`,
+      'Rules:',
+      '- 2-6 commands, each minimal, safe, and directly actionable for this task only.',
+      '- Do NOT include commands that prepare later tasks or describe multi-step plans.',
+      '- Prefer standard Linux tooling (apt, git, make) & BeagleBoard context.',
+      '- Avoid destructive operations (no rm -rf *, no sudo unless essential).',
+      '- code snippet <= 80 lines, show key logic only, may be empty string if not useful.',
+      '- NO text outside JSON.',
+      'If the task cannot be accomplished safely, return { "commands": [], "code": "" }.'
+    ].join('\n');
 
     const provider = body.provider === 'groq' ? 'groq' : 'openai';
     const modelId = body.model || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o');
     // For now, use OpenAI; Groq support can be added when provider package is available.
     const result = await generateText({
       model: openai(provider === 'groq' ? 'gpt-4o' : modelId),
-      system: 'Return ONLY raw JSON. Never add commentary.',
+      system: 'Return ONLY raw JSON. Never add commentary. Focus only on the current task; do not propose next-step commands.',
       prompt,
-      temperature: 0.3,
+      temperature: 0.0,
       maxOutputTokens: 800,
     });
     const text = result.text.trim();
