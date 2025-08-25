@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, X, Trash2 } from 'lucide-react';
@@ -16,6 +17,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onSelectChat: (chatId: string) => void;
   onClose: () => void;
+  onDelete?: (chatId: string) => void;
 }
 
 export function Sidebar({ 
@@ -23,10 +25,12 @@ export function Sidebar({
   currentChatId, 
   onNewChat, 
   onSelectChat,
-  onClose 
+  onClose,
+  onDelete
 }: SidebarProps) {
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   return (
-    <div className="h-full bg-slate-950 border-r border-slate-800 flex flex-col">
+  <div className="h-full bg-slate-950 border-r border-slate-800 flex flex-col max-w-full">
       {/* Header */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-4">
@@ -82,16 +86,16 @@ export function Sidebar({
       </div>
 
       {/* Conversations list */}
-      <ScrollArea className="flex-1 p-2">
+  <ScrollArea className="flex-1 p-3">
         <div className="px-2 mb-3">
           <h3 className="text-sm font-medium text-slate-300">Recent Conversations</h3>
         </div>
-        <div className="space-y-1">
+        <div className="space-y-2">
           {conversations.map((conversation) => (
             <div
               key={conversation.id}
               className={`
-                group relative p-3 rounded-lg cursor-pointer transition-all duration-200
+                group relative p-2 rounded-md cursor-pointer transition-all duration-200
                 ${currentChatId === conversation.id 
                   ? 'bg-cyan-700/20 border border-cyan-700/30' 
                   : 'hover:bg-slate-850/50'
@@ -99,20 +103,20 @@ export function Sidebar({
               `}
               onClick={() => onSelectChat(conversation.id)}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <h3 className={`
-                    text-sm font-medium truncate
+                    text-xs font-medium truncate
                     ${currentChatId === conversation.id ? 'text-cyan-100' : 'text-slate-200'}
                   `}>
                     {conversation.title}
                   </h3>
                   {conversation.lastMessage && (
-                    <p className="text-xs text-slate-500 truncate mt-1">
-                      {conversation.lastMessage}
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {conversation.lastMessage.slice(0, 50)}...
                     </p>
                   )}
-                  <p className="text-xs text-slate-600 mt-1">
+                  <p className="text-[10px] text-slate-600 mt-1">
                     {formatDistanceToNow(conversation.timestamp, { addSuffix: true })}
                   </p>
                 </div>
@@ -125,7 +129,8 @@ export function Sidebar({
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 text-slate-500 hover:text-red-400"
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Handle delete conversation
+                  // ask for confirmation first
+                  setPendingDelete(conversation.id);
                 }}
               >
                 <Trash2 className="h-3 w-3" />
@@ -134,6 +139,23 @@ export function Sidebar({
           ))}
         </div>
       </ScrollArea>
+
+      {/* Delete confirmation modal */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPendingDelete(null)} />
+          <div className="relative z-50 w-full max-w-md mx-auto rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <h3 className="text-lg font-semibold text-slate-100">Delete conversation?</h3>
+            <p className="mt-2 text-sm text-slate-400">This will permanently remove the conversation and its messages.</p>
+            <div className="mt-4 flex justify-end gap-3">
+              <Button variant="ghost" className="text-slate-300" onClick={() => setPendingDelete(null)}>Cancel</Button>
+              <Button className="bg-red-600 hover:bg-red-500 text-white" onClick={() => { onDelete?.(pendingDelete); setPendingDelete(null); }}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-800">
