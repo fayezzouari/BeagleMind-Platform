@@ -19,7 +19,7 @@ OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 docker compose up --build -d
 ```
 
-That’s it. The frontend runs at http://localhost:3000 and the API at http://localhost:8000.
+That’s it. The frontend runs at http://localhost:3000 and the API is exposed at https://mind-api.beagleboard.org (inside Docker it is reachable as http://beaglemind-api:8000).
 
 ## What happens on API startup
 On first start, the API triggers two background tasks automatically (one-time per container start):
@@ -37,7 +37,7 @@ Both write into the same Milvus collection: `beagleboard`.
 ## Environment notes
 - Frontend expects:
   - `OPENAI_API_KEY` (from `.env.local`)
-  - It talks to the API at `http://beaglemind-api:8000` within Docker. Outside Docker, the chat route uses `http://localhost:8000` as a default.
+  - It talks to the API at `http://beaglemind-api:8000` within Docker. Outside Docker, the chat route defaults to `https://mind-api.beagleboard.org` unless `KNOWLEDGE_BASE_URL` is overridden.
 - Backend uses ONNX models shipped in `beaglemind-api/onnx` (mounted read-only).
 
 ## Services

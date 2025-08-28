@@ -7,6 +7,7 @@ import httpx
 from pathlib import Path
 from app.routes.retrieval import router as retrieval_router
 from app.routes.github_ingestion import router as github_ingestion_router
+from app.routes.conversations import router as conversations_router
 
 # Configure logging to ensure all logs are visible
 logging.basicConfig(
@@ -31,6 +32,7 @@ app = FastAPI(
 
 app.include_router(retrieval_router, prefix="/api", tags=["retrieval"])
 app.include_router(github_ingestion_router, prefix="/api", tags=["github_ingestion"])
+app.include_router(conversations_router, prefix="/api", tags=["conversations"])
 
 @app.get("/")
 async def root():
@@ -56,7 +58,7 @@ async def startup_tasks():
     logger.info("[STARTUP] Running one-time startup tasks: initial ingestion and forum import")
 
     # Determine API base URL inside Docker or local
-    api_base = os.getenv("SELF_API_BASE", "http://localhost:8000")
+    api_base = os.getenv("SELF_API_BASE", "https://mind-api.beagleboard.org")
 
     # Prepare ingest body
     ingest_body = {

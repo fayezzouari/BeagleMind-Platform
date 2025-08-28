@@ -172,7 +172,7 @@ function buildHeuristicPlan(input: WizardRequest): WizardResponse {
 }
 
 // --- Retrieval Helpers (reuse pattern from chat route) ---
-const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'http://localhost:8000';
+const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'https://mind-api.beagleboard.org';
 const KB_COLLECTION_NAME = process.env.KB_COLLECTION_NAME || 'beaglemind_col';
 const WIZARD_CONTEXT_RESULTS = Number(process.env.WIZARD_CONTEXT_RESULTS || process.env.KB_CONTEXT_RESULTS || 5);
 const WIZARD_CONTEXT_CHAR_BUDGET = Number(process.env.WIZARD_CONTEXT_CHAR_BUDGET || process.env.KB_CONTEXT_CHAR_BUDGET || 4000);

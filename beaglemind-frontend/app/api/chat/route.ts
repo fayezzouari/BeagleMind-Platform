@@ -1,11 +1,12 @@
 import { openai } from '@ai-sdk/openai';
 import { groq } from '@ai-sdk/groq';
 import { convertToModelMessages, streamText, UIMessage } from 'ai';
+import { getServerSession } from 'next-auth';
 
 export const maxDuration = 30;
 
 // Configuration constants
-const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'http://localhost:8000';
+const KNOWLEDGE_BASE_URL = process.env.KNOWLEDGE_BASE_URL || 'https://mind-api.beagleboard.org';
 // Make collection configurable; default to backend's expected name
 const KB_COLLECTION_NAME = 'beagleboard';
 
@@ -177,6 +178,7 @@ function buildContextFromResults(
 
 export async function POST(req: Request) {
   const { messages, data }: { messages: UIMessage[]; data?: { tool?: string; provider?: 'openai' | 'groq'; model?: string } } = await req.json();
+  const session = await getServerSession();
 
   let contextualSystemPrompt = `You are BeagleMind, an AI assistant specialized in BeagleBoard development and hardware.
 You help users with:
@@ -236,6 +238,26 @@ IMAGE USAGE (RAW GITHUB):
       ?.filter(part => part.type === 'text')
       ?.map(part => part.text)
       ?.join(' ') || '';
+
+    // Store first message in backend if this is the first user message
+    try {
+      const userMessages = messages.filter(m => m.role === 'user');
+    if (userMessages.length === 1 && userQuery) {
+        const payload = {
+          message: userQuery,
+      user_email: (session?.user?.email as string | null | undefined) ?? null,
+      user_id: ((session as unknown as { user_sub?: string })?.user_sub ?? null),
+          conversation_id: undefined,
+          metadata: { source: 'chat-api' },
+        };
+        await fetch(`${KNOWLEDGE_BASE_URL}/api/conversations/first-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+    } catch {}
 
     // Also consider previous conversation context for better retrieval
     const conversationContext = messages

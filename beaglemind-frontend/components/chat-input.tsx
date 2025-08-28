@@ -18,7 +18,7 @@ interface ChatInputProps {
 export function ChatInput({ onSendMessage, disabled, status, provider, model, onModelChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [selectedTool, setSelectedTool] = useState<string>('none');
-  const [showSuggestions, setShowSuggestions] = useState<boolean>(true);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
   const promptSuggestions = [
     "What are the GPIO pins on BeagleBoard-X15?",
@@ -71,6 +71,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
           </div>
           {showSuggestions && (
             <div className="flex flex-wrap gap-1.5 md:gap-2">
+
               {promptSuggestions.map((suggestion, index) => (
                 <button
                   key={index}
@@ -89,6 +90,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
       <div className="p-2 md:p-3">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
           <div className="relative flex items-end gap-2 md:gap-3 bg-slate-850/50 border border-slate-800 rounded-xl md:rounded-2xl p-2 md:p-3">
+
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -96,6 +98,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
               placeholder="Ask BeagleMind about hardware, development, or troubleshooting..."
               disabled={disabled}
               className="flex-1 min-h-[16px] md:min-h-[20px] max-h-24 md:max-h-32 resize-none border-0 bg-transparent text-slate-100 placeholder-slate-500 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm md:text-base"
+
               rows={1}
             />
             
@@ -116,6 +119,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
               size="sm"
               className={`
                 h-7 w-7 md:h-8 md:w-8 p-0 rounded-lg transition-all duration-200
+
                 ${!disabled && input.trim()
                   ? 'bg-cyan-700 hover:bg-cyan-800 text-white' 
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
@@ -126,6 +130,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
                 <Square className="h-3 w-3 md:h-4 md:w-4" />
               ) : (
                 <Send className="h-3 w-3 md:h-4 md:w-4" />
+
               )}
             </Button>
           </div>
@@ -133,6 +138,7 @@ export function ChatInput({ onSendMessage, disabled, status, provider, model, on
           {/* Tool indicator */}
           {(selectedTool !== 'none' || provider || model) && (
             <div className="flex items-center gap-1.5 md:gap-2 mt-1.5 md:mt-2">
+
               {selectedTool !== 'none' && (
                 <Badge variant="secondary" className="bg-cyan-700/20 text-cyan-400 border-cyan-700/30 text-xs">
                   Web Search Enabled
