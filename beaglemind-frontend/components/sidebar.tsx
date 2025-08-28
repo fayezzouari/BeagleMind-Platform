@@ -8,6 +8,7 @@ interface Conversation {
   title: string;
   lastMessage: string;
   timestamp: Date;
+  messageCount?: number;
 }
 
 interface SidebarProps {

@@ -22,10 +22,9 @@ export function ChatArea({ messages, status }: ChatAreaProps) {
   // Auto-scroll to bottom when new messages arrive
   // Track whether user has manually scrolled up (disable auto-scroll)
   const [autoScroll, setAutoScroll] = useState(true);
-  const containerRef = scrollAreaRef; // reuse
 
   const handleScroll = useCallback(() => {
-    const el = containerRef.current;
+    const el = scrollAreaRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const atBottom = distanceFromBottom < 40; // px threshold
@@ -37,7 +36,7 @@ export function ChatArea({ messages, status }: ChatAreaProps) {
   }, [autoScroll]);
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = scrollAreaRef.current;
     if (!el) return;
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
@@ -64,48 +63,48 @@ export function ChatArea({ messages, status }: ChatAreaProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-4 md:p-8">
         <div className="text-center max-w-2xl">
-          <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-4 md:mb-6">
             <img 
               src="/beagleboard-logo.png" 
               alt="BeagleBoard Logo" 
-              className="w-16 h-16 object-contain"
+              className="w-12 h-12 md:w-16 md:h-16 object-contain"
             />
           </div>
-          <h2 className="text-3xl font-bold text-slate-100 mb-3">
+          <h2 className="text-2xl md:text-3xl font-bold text-slate-100 mb-2 md:mb-3">
             Welcome to BeagleMind
           </h2>
-          <p className="text-slate-400 mb-8 text-lg">
+          <p className="text-slate-400 mb-6 md:mb-8 text-sm md:text-lg px-4">
             Your intelligent BeagleBoard assistant. Get help with hardware, development, 
             and everything related to your BeagleBoard projects.
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="p-4 bg-blue-700/20 border border-blue-700/30 rounded-xl">
-              <h3 className="font-semibold text-blue-300 mb-2">Hardware Specs</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-xs md:text-sm px-4">
+            <div className="p-3 md:p-4 bg-blue-700/20 border border-blue-700/30 rounded-xl">
+              <h3 className="font-semibold text-blue-300 mb-1 md:mb-2 text-sm md:text-base">Hardware Specs</h3>
               <p className="text-slate-400 text-xs">
                 Learn about BeagleBoard specifications, GPIO pins, and hardware capabilities
               </p>
             </div>
             
-            <div className="p-4 bg-emerald-700/20 border border-emerald-700/30 rounded-xl">
-              <h3 className="font-semibold text-emerald-300 mb-2">Quick Setup</h3>
+            <div className="p-3 md:p-4 bg-emerald-700/20 border border-emerald-700/30 rounded-xl">
+              <h3 className="font-semibold text-emerald-300 mb-1 md:mb-2 text-sm md:text-base">Quick Setup</h3>
               <p className="text-slate-400 text-xs">
                 Get started with Linux, development environments, and project setup
               </p>
             </div>
             
-            <div className="p-4 bg-amber-700/20 border border-amber-700/30 rounded-xl">
-              <h3 className="font-semibold text-amber-300 mb-2">Development</h3>
+            <div className="p-3 md:p-4 bg-amber-700/20 border border-amber-700/30 rounded-xl">
+              <h3 className="font-semibold text-amber-300 mb-1 md:mb-2 text-sm md:text-base">Development</h3>
               <p className="text-slate-400 text-xs">
                 Programming guides, libraries, and embedded systems development
               </p>
             </div>
           </div>
           
-          <div className="mt-8 p-4 bg-slate-850/50 border border-slate-800 rounded-xl">
-            <p className="text-sm text-slate-300">
+          <div className="mt-6 md:mt-8 p-3 md:p-4 bg-slate-850/50 border border-slate-800 rounded-xl mx-4">
+            <p className="text-xs md:text-sm text-slate-300">
               <strong>Tip:</strong> Ask me about specific BeagleBoard models, GPIO programming, 
               or troubleshooting your development setup.
             </p>
@@ -118,23 +117,23 @@ export function ChatArea({ messages, status }: ChatAreaProps) {
   return (
     <div className="relative flex-1 h-full">
       <ScrollArea className="flex-1 h-full chat-scroll-area" ref={scrollAreaRef}>
-        <div className="max-w-4xl mx-auto space-y-6 p-4 pb-8">
+        <div className="max-w-4xl mx-auto space-y-3 md:space-y-4 p-3 md:p-4 pb-6 md:pb-8">
         {messages.map((message) => {
           const streaming = status === 'streaming' && lastAssistantId === message.id;
           return <MessageBubble key={message.id} message={message} streaming={streaming} />;
         })}
         
   {(status === 'submitted' || (status === 'streaming' && (!lastAssistantId || !lastAssistantHasContent))) && (
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+          <div className="flex items-start gap-2 md:gap-3">
+            <div className="w-6 h-6 md:w-7 md:h-7 rounded-full overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
               <img 
                 src="/beagleboard-logo.png" 
                 alt="BeagleBoard Logo" 
-                className="w-6 h-6 object-contain"
+                className="w-4 h-4 md:w-5 md:h-5 object-contain"
               />
             </div>
             <div className="flex-1">
-              <div className="bg-slate-850/50 rounded-2xl rounded-tl-sm p-4 border border-slate-800/50">
+              <div className="bg-slate-850/50 rounded-xl md:rounded-2xl rounded-tl-sm p-2 md:p-3 border border-slate-800/50">
                 <LoadingDots />
               </div>
             </div>
@@ -151,9 +150,9 @@ export function ChatArea({ messages, status }: ChatAreaProps) {
             setAutoScroll(true);
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
-          className="absolute bottom-4 right-4 z-10 px-3 py-2 rounded-full bg-neutral-800/80 border border-neutral-700 text-xs text-neutral-200 flex items-center gap-1 shadow hover:bg-neutral-700 backdrop-blur"
+          className="absolute bottom-3 md:bottom-4 right-3 md:right-4 z-10 px-2 md:px-3 py-1.5 md:py-2 rounded-full bg-neutral-800/80 border border-neutral-700 text-xs text-neutral-200 flex items-center gap-1 shadow hover:bg-neutral-700 backdrop-blur"
         >
-          <ArrowDown className="h-4 w-4" /> Latest
+          <ArrowDown className="h-3 w-3 md:h-4 md:w-4" /> Latest
         </button>
       )}
     </div>
