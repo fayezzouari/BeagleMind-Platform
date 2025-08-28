@@ -530,7 +530,7 @@ class GitHubDirectIngester:
         return image_links, attachment_links, external_links
     
     def semantic_chunk_content(self, content: str, file_info: Dict[str, Any], 
-                              max_chunk_size: int = 1000) -> List[str]:
+                              max_chunk_size: int = 300) -> List[str]:
         """
         Perform chunking of content using RecursiveCharacterTextSplitter.
         
@@ -544,7 +544,7 @@ class GitHubDirectIngester:
         """
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=max_chunk_size,
-            chunk_overlap=100,
+            chunk_overlap=50,
             length_function=len,
             separators=["\n\n", "\n", ". ", " ", ""]
         )
